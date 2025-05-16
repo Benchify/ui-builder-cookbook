@@ -4,8 +4,15 @@
 import { useEffect, useState } from 'react';
 import { PromptForm } from '@/components/ui-builder/prompt-form';
 import { Card, CardContent } from '@/components/ui/card';
+import { benchifyFileSchema } from '@/lib/schemas';
+import { z } from 'zod';
+
 export default function Home() {
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{
+    repairedFiles: z.infer<typeof benchifyFileSchema>;
+    buildOutput: string;
+    previewUrl: string;
+  } | null>(null);
 
   useEffect(() => {
     if (result) {
@@ -22,11 +29,19 @@ export default function Home() {
         <p className="text-lg text-muted-foreground mb-8 text-center">
           Generate UI components with AI and automatically repair issues with Benchify
         </p>
-        <Card className="border-border bg-card">
-          <CardContent className="pt-6">
-            <PromptForm onGenerate={setResult} />
-          </CardContent>
-        </Card>
+        {!result ? (
+          <Card className="border-border bg-card">
+            <CardContent className="pt-6">
+              <PromptForm onGenerate={setResult} />
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-border bg-card">
+            <CardContent className="pt-6">
+              <iframe title="Preview" src={result.previewUrl} className="w-full h-full" />
+            </CardContent>
+          </Card>
+        )}
       </div>
     </main>
   );

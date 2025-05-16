@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         const validatedFiles = benchifyFileSchema.parse(generatedFiles);
 
         // // Repair the generated code using Benchify's API
-        const repairedFiles = await repairCode(validatedFiles);
+        const { repairedFiles, buildOutput } = await repairCode(validatedFiles);
 
         const { sbxId, template, url } = await createSandbox({ files: generatedFiles });
 
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             originalFiles: generatedFiles,
             repairedFiles: repairedFiles,
-            // buildOutput: '',  // We don't get build output from Benchify in our current setup
+            buildOutput: buildOutput,
             previewUrl: url,
         });
     } catch (error) {
