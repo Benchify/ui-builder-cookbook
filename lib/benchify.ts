@@ -15,7 +15,7 @@ if (!BENCHIFY_API_KEY) {
 }
 
 // Repair code using Benchify Fixer API
-export async function repairCode(files: z.infer<typeof benchifyFileSchema>): Promise<z.infer<typeof benchifyFileSchema>> {
+export async function repairCode(files: z.infer<typeof benchifyFileSchema>): Promise<{ repairedFiles: z.infer<typeof benchifyFileSchema>, buildOutput: string }> {
     try {
         // Simple build command to verify syntax
         const buildCmd = "npm run dev";
@@ -28,13 +28,13 @@ export async function repairCode(files: z.infer<typeof benchifyFileSchema>): Pro
         });
 
         console.log('Sending request to Benchify:', {
-            url: `${BENCHIFY_API_URL}/v1/fixer`,
+            url: `${BENCHIFY_API_URL}/fixer`,
             filesCount: files.length,
             jobName: requestData.jobName
         });
 
         // Send request to Benchify API
-        const response = await fetch(`${BENCHIFY_API_URL}/v1/fixer`, {
+        const response = await fetch(`${BENCHIFY_API_URL}/fixer`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -74,13 +74,13 @@ export async function repairCode(files: z.infer<typeof benchifyFileSchema>): Pro
                 const patchResult = applyPatch(file.contents, result.diff);
                 return {
                     path: file.path,
-                    contents: typeof patchResult === 'string' ? patchResult : file.contents
+                    content: typeof patchResult === 'string' ? patchResult : file.content
                 };
             }
             return file;
         });
 
-        return repairedFiles;
+        return { repairedFiles, buildOutput: result.build_output };
     } catch (error) {
         if (error instanceof Error) {
             console.error('Benchify Processing Error:', {
