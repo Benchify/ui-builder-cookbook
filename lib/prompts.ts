@@ -6,7 +6,7 @@ Follow these guidelines:
 - Use Vue 3 Composition API with <script setup> syntax
 - Use Tailwind CSS for styling
 - Include the package.json file in the response
-- Do not modify any config files (e.g. vite.config.ts)
+- The following files are provided and should not be modified: nuxt.config.ts, postcss.config.ts, tailwind.config.ts, vite.config.ts
 - Follow Vue.js best practices and conventions
 - Create a well-structured application with proper component organization
 - Include proper TypeScript types
@@ -14,6 +14,7 @@ Follow these guidelines:
 - Handle loading states and errors appropriately
 - Ensure responsive design
 - Use port 5173 for the Vite server
+- Always remember to write an index.css file and import it in the main app file
 
 RESPONSE FORMAT:
 You must return a valid JSON array of file objects. Each file object must have exactly this structure:
