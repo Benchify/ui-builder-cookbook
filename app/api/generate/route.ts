@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateApp } from '@/lib/openai';
 import { repairCode } from '@/lib/benchify';
-import { createSandbox, prepareVueEnvironment, deployApp } from '@/lib/e2b';
+import { createSandbox } from '@/lib/e2b';
 import { componentSchema } from '@/lib/schemas';
 import { benchifyFileSchema } from '@/lib/schemas';
 
@@ -31,25 +31,16 @@ export async function POST(request: NextRequest) {
         // // Repair the generated code using Benchify's API
         // const repairedFiles = await repairCode(validatedFiles);
 
-        // // Set up E2B sandbox for preview
-        let previewUrl = undefined;
-        try {
-            const sandbox = await createSandbox();
-            await prepareVueEnvironment(sandbox);
-            const { previewUrl: url } = await deployApp(sandbox, generatedFiles);
-            previewUrl = url;
-        } catch (error) {
-            console.error('Error setting up preview:', error);
-        }
+        const { sbxId, template, url } = await createSandbox({ files: generatedFiles });
 
-        console.log("Preview URL: ", previewUrl);
+        console.log("Preview URL: ", url);
 
         // Return the results to the client
         return NextResponse.json({
             originalFiles: generatedFiles,
             // repairedFiles: repairedFiles,
-            buildOutput: '',  // We don't get build output from Benchify in our current setup
-            previewUrl,
+            // buildOutput: '',  // We don't get build output from Benchify in our current setup
+            previewUrl: url,
         });
     } catch (error) {
         console.error('Error generating app:', error);
