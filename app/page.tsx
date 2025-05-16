@@ -1,12 +1,17 @@
 // app/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PromptForm } from '@/components/ui-builder/prompt-form';
 import { Card, CardContent } from '@/components/ui/card';
-
 export default function Home() {
   const [result, setResult] = useState<any>(null);
+
+  useEffect(() => {
+    if (result) {
+      console.log(result);
+    }
+  }, [result]);
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-background">
