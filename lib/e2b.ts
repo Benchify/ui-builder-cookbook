@@ -52,7 +52,12 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
     }
 
     // Run the Vite app
-    await sandbox.commands.run('cd /home/user/app && npx vite');
+    sandbox.commands.run('npx vite --host', {
+        cwd: '/home/user/app',
+        timeoutMs: 0,
+    }).catch((error) => {
+        console.error("Error running Vite:", error);
+    });
 
     return {
         sbxId: sandbox.sandboxId,
