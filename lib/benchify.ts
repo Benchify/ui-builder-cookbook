@@ -18,7 +18,7 @@ if (!BENCHIFY_API_KEY) {
 export async function repairCode(files: z.infer<typeof benchifyFileSchema>): Promise<{ repairedFiles: z.infer<typeof benchifyFileSchema>, buildOutput: string }> {
     try {
         // Simple build command to verify syntax
-        const buildCmd = "npm run dev";
+        const buildCmd = "npx vite build";
 
         // Validate request against Benchify API schema
         const requestData = benchifyRequestSchema.parse({
@@ -71,7 +71,7 @@ export async function repairCode(files: z.infer<typeof benchifyFileSchema>): Pro
         const parsedFiles = benchifyFileSchema.parse(files);
         const repairedFiles = parsedFiles.map(file => {
             if (result.diff) {
-                const patchResult = applyPatch(file.contents, result.diff);
+                const patchResult = applyPatch(file.content, result.diff);
                 return {
                     path: file.path,
                     content: typeof patchResult === 'string' ? patchResult : file.content
