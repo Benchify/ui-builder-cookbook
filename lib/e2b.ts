@@ -30,7 +30,7 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
             const devDependencies = packageJson.devDependencies || {};
 
             // Filter out pre-installed dependencies (vue, tailwindcss, etc.)
-            const preInstalled = ['vue', 'tailwindcss', 'autoprefixer', 'postcss', 'vite', '@vitejs/plugin-vue', '@vue/compiler-sfc'];
+            const preInstalled = ['vue', "typescript", 'tailwindcss', 'autoprefixer', 'postcss', 'vite', '@vitejs/plugin-vue', '@vue/compiler-sfc'];
 
             // Get new deps that need to be installed
             const newDeps = Object.keys(dependencies).filter(dep => !preInstalled.includes(dep));
