@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         const validatedFiles = benchifyFileSchema.parse(generatedFiles);
 
         // // Repair the generated code using Benchify's API
-        const { repairedFiles, buildOutput } = await repairCode(validatedFiles);
+        // const { repairedFiles, buildOutput } = await repairCode(validatedFiles);
 
         const { sbxId, template, url } = await createSandbox({ files: generatedFiles });
 
@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
         // Return the results to the client
         return NextResponse.json({
             originalFiles: generatedFiles,
-            repairedFiles: repairedFiles,
-            buildOutput: buildOutput,
+            // repairedFiles: repairedFiles,
+            // buildOutput: buildOutput,
             previewUrl: url,
         });
     } catch (error) {
