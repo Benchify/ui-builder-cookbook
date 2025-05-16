@@ -13,13 +13,13 @@ if (!OPENAI_API_KEY) {
 // Schema for a single file
 const fileSchema = z.object({
     path: z.string(),
-    contents: z.string()
+    content: z.string()
 });
 
 // Generate a Vue application using AI SDK
 export async function generateApp(
     description: string,
-): Promise<Array<{ path: string; contents: string }>> {
+): Promise<Array<{ path: string; content: string }>> {
     console.log("Creating app with description: ", description);
 
     try {

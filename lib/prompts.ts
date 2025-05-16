@@ -19,7 +19,7 @@ RESPONSE FORMAT:
 You must return a valid JSON array of file objects. Each file object must have exactly this structure:
 {
   "path": "string (relative path to the file)",
-  "contents": "string (the complete file contents)"
+  "content": "string (the complete file content)"
 }
 
 Do not include any markdown formatting, code blocks, or explanatory text. The response must be pure JSON.`;

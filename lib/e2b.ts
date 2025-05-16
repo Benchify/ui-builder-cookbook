@@ -15,7 +15,7 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
     await sandbox.files.write(
         files.map(file => ({
             path: `/home/user/app/${file.path}`,
-            data: file.contents
+            data: file.content
         }))
     );
 
@@ -25,7 +25,7 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
     const packageJsonFile = files.find(file => file.path === 'package.json');
     if (packageJsonFile) {
         try {
-            const packageJson = JSON.parse(packageJsonFile.contents);
+            const packageJson = JSON.parse(packageJsonFile.content);
             const dependencies = packageJson.dependencies || {};
             const devDependencies = packageJson.devDependencies || {};
 
