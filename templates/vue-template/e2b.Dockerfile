@@ -5,9 +5,11 @@ FROM node:21-slim
 WORKDIR /home/user/app
 
 # Pre-install common dependencies to speed up runtime
-RUN npm init -y
 RUN npm install -g typescript vue@3
-RUN npm install --legacy-peer-deps --save-dev tailwindcss@3 autoprefixer@10 postcss@8 @vue/compiler-sfc@3 vite @vitejs/plugin-vue @vitejs/plugin-react-swc
+
+# Copy in package.json and install dependencies
+COPY package.json /home/user/app/
+RUN npm install --legacy-peer-deps
 
 # Set up basic Vite configuration for Vue
 RUN npx tailwindcss init
