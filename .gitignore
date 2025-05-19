@@ -2,3 +2,7 @@ node_modules/
 .next/
 dist/
 build/
+
+# Environment Variables
+.env
+.env*.local
