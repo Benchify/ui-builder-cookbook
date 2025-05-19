@@ -2,7 +2,7 @@
 import { streamObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
-import { VUE_APP_SYSTEM_PROMPT, VUE_APP_USER_PROMPT, TEMPERATURE, MODEL } from './prompts';
+import { REACT_APP_SYSTEM_PROMPT, REACT_APP_USER_PROMPT, TEMPERATURE, MODEL } from './prompts';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -29,8 +29,8 @@ export async function generateApp(
             schema: fileSchema,
             temperature: TEMPERATURE,
             messages: [
-                { role: 'system', content: VUE_APP_SYSTEM_PROMPT },
-                { role: 'user', content: VUE_APP_USER_PROMPT(description) }
+                { role: 'system', content: REACT_APP_SYSTEM_PROMPT },
+                { role: 'user', content: REACT_APP_USER_PROMPT(description) }
             ]
         });
 
