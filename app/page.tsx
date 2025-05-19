@@ -3,13 +3,15 @@
 
 import { useEffect, useState } from 'react';
 import { PromptForm } from '@/components/ui-builder/prompt-form';
+import { PreviewCard } from '@/components/ui-builder/preview-card';
 import { Card, CardContent } from '@/components/ui/card';
 import { benchifyFileSchema } from '@/lib/schemas';
 import { z } from 'zod';
 
 export default function Home() {
   const [result, setResult] = useState<{
-    repairedFiles: z.infer<typeof benchifyFileSchema>;
+    repairedFiles?: z.infer<typeof benchifyFileSchema>;
+    originalFiles?: z.infer<typeof benchifyFileSchema>;
     buildOutput: string;
     previewUrl: string;
   } | null>(null);
@@ -36,11 +38,10 @@ export default function Home() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="border-border bg-card">
-            <CardContent className="pt-6">
-              <iframe title="Preview" src={result.previewUrl} className="w-full h-full" />
-            </CardContent>
-          </Card>
+          <PreviewCard
+            previewUrl={result.previewUrl}
+            code={result.repairedFiles || result.originalFiles || []}
+          />
         )}
       </div>
     </main>
