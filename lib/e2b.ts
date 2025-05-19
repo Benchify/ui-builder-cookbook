@@ -8,6 +8,11 @@ if (!E2B_API_KEY) {
     throw new Error('E2B_API_KEY is not set');
 }
 
+type FileEntry = {
+    path: string;
+    content: string;
+};
+
 export async function createSandbox({ files }: { files: z.infer<typeof benchifyFileSchema> }) {
     // Create sandbox from the improved template
     const sandbox = await Sandbox.create('vite-support', { apiKey: E2B_API_KEY });
@@ -40,12 +45,86 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
 
     await sandbox.files.write(filesToWrite);
 
+    // Get all files from the sandbox recursively
+    const allFiles = await fetchAllSandboxFiles(sandbox);
+    console.log(`Found ${allFiles.length} files in sandbox`);
+    console.log("allFiles", allFiles);
+
     const previewUrl = `https://${sandbox.getHost(5173)}`;
 
     return {
         sbxId: sandbox.sandboxId,
         template: 'vite-support',
-        url: previewUrl
+        url: previewUrl,
+        allFiles: allFiles
     };
+}
+
+/**
+ * Recursively fetches all files from the sandbox and returns them in benchifyFileSchema format
+ */
+async function fetchAllSandboxFiles(sandbox: Sandbox): Promise<z.infer<typeof benchifyFileSchema>> {
+    const result: FileEntry[] = [];
+
+    // Start the recursive traversal from /app
+    await listFilesRecursively(sandbox, '/app', result);
+
+    return result;
+}
+
+/**
+ * Recursively lists files in a directory and reads their content
+ */
+async function listFilesRecursively(
+    sandbox: Sandbox,
+    dirPath: string,
+    result: FileEntry[]
+): Promise<void> {
+    try {
+        // List all files and directories in the current path
+        const items = await sandbox.files.list(dirPath);
+
+        // Process each item
+        for (const item of items) {
+            // Skip node_modules and hidden files
+            if (item.name === 'node_modules' || item.name.startsWith('.')) {
+                continue;
+            }
+
+            const fullPath = item.path;
+
+            if (item.type === 'dir') {
+                // Recursively process directories
+                await listFilesRecursively(sandbox, fullPath, result);
+            } else {
+                try {
+                    // Skip binary files
+                    if (
+                        item.name.endsWith('.jpg') ||
+                        item.name.endsWith('.png') ||
+                        item.name.endsWith('.gif') ||
+                        item.name.endsWith('.ico') ||
+                        item.name.endsWith('.woff') ||
+                        item.name.endsWith('.woff2')
+                    ) {
+                        continue;
+                    }
+
+                    // Read the file content
+                    const content = await sandbox.files.read(fullPath);
+
+                    // Add file to result array with normalized path (without /app/ prefix)
+                    result.push({
+                        path: fullPath.replace('/app/', ''),
+                        content: content.toString()
+                    });
+                } catch (error) {
+                    console.error(`Error reading file ${fullPath}:`, error);
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`Error listing directory ${dirPath}:`, error);
+    }
 }
 
