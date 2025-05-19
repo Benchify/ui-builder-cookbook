@@ -1,0 +1,18 @@
+# This is a config for E2B sandbox template.
+# You can use template ID (5harom00c0l7yk46ewmn) or template name (vite-support) to create a sandbox:
+
+# Python SDK
+# from e2b import Sandbox, AsyncSandbox
+# sandbox = Sandbox("vite-support") # Sync sandbox
+# sandbox = await AsyncSandbox.create("vite-support") # Async sandbox
+
+# JS SDK
+# import { Sandbox } from 'e2b'
+# const sandbox = await Sandbox.create('vite-support')
+
+team_id = "35f2ed91-a6af-4e6c-a693-9e9e244fcdbd"
+memory_mb = 1_024
+start_cmd = "cd /app && npm run dev -- --host --port 5173"
+dockerfile = "e2b.Dockerfile"
+template_name = "vite-support"
+template_id = "5harom00c0l7yk46ewmn"

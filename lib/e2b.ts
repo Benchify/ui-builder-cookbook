@@ -9,107 +9,44 @@ if (!E2B_API_KEY) {
 }
 
 export async function createSandbox({ files }: { files: z.infer<typeof benchifyFileSchema> }) {
-    const sandbox = await Sandbox.create('vite-template', { apiKey: E2B_API_KEY });
+    // Create sandbox from the improved template
+    const sandbox = await Sandbox.create('vite-support', { apiKey: E2B_API_KEY });
+    console.log(`Sandbox created: ${sandbox.sandboxId}`);
 
-    // Debug: Log template files before writing anything
-    try {
-        console.log("TEMPLATE VERIFICATION:");
-        const { stdout: templateFiles } = await sandbox.commands.run('ls -la /app', { cwd: '/app' });
-        console.log("Template files in /app:", templateFiles);
-
-        const { stdout: templatePkgJson } = await sandbox.commands.run('cat /app/package.json', { cwd: '/app' });
-        console.log("Template package.json:", templatePkgJson);
-    } catch (error) {
-        console.error("Error checking template:", error);
-    }
-
-    // Find AI-generated package.json to extract dependencies
-    const aiPackageJsonFile = files.find(file => file.path === 'package.json');
-
-    // Filter out package.json from files to write (we'll handle it separately)
-    const filesToWrite = files
-        .filter(file => file.path !== 'package.json')
-        .map(file => ({
-            path: `/app/${file.path}`,
-            data: file.content
-        }));
-
-    // Write all files to the sandbox EXCEPT package.json
-    await sandbox.files.write(filesToWrite);
-
-    console.log("sandbox created", sandbox.sandboxId);
-
-    // Debug: Verify files after writing
-    try {
-        console.log("AFTER WRITING FILES:");
-        const { stdout: rootContents } = await sandbox.commands.run('ls -la /app', { cwd: '/app' });
-        console.log("Files in /app:", rootContents);
-
-        const { stdout: packageJson } = await sandbox.commands.run('cat /app/package.json', { cwd: '/app' });
-        console.log("Current package.json:", packageJson);
-
-        const { stdout: scriptsList } = await sandbox.commands.run('npm run', { cwd: '/app' });
-        console.log("Available npm scripts:", scriptsList);
-    } catch (error) {
-        console.error("Error in debug commands:", error);
-    }
-
-    // Process dependencies if AI provided a package.json
-    if (aiPackageJsonFile) {
-        try {
-            const aiPackageJson = JSON.parse(aiPackageJsonFile.content);
-            const dependencies = aiPackageJson.dependencies || {};
-            const devDependencies = aiPackageJson.devDependencies || {};
-
-            // Filter out pre-installed dependencies
-            const preInstalled = [
-                'react', 'react-dom', '@tailwindcss/vite', 'tailwindcss',
-                '@types/react', '@types/react-dom', '@vitejs/plugin-react',
-                'typescript', 'vite', 'postcss', 'autoprefixer'
-            ];
-
-            // Get new deps that need to be installed
-            const newDeps = Object.keys(dependencies).filter(dep => !preInstalled.includes(dep));
-            const newDevDeps = Object.keys(devDependencies).filter(dep => !preInstalled.includes(dep));
-
-            // Install only new dependencies if any exist
-            if (newDeps.length > 0) {
-                console.log("Installing new dependencies:", newDeps.join(", "));
-                await sandbox.commands.run(`cd /app && npm install --legacy-peer-deps ${newDeps.join(' ')}`);
-            }
-
-            if (newDevDeps.length > 0) {
-                console.log("Installing new dev dependencies:", newDevDeps.join(", "));
-                await sandbox.commands.run(`cd /app && npm install --legacy-peer-deps --save-dev ${newDevDeps.join(' ')}`);
-            }
-        } catch (error) {
-            console.error("Error parsing package.json:", error);
+    // Check if the user provided CSS files with old Tailwind syntax
+    const cssFiles = files.filter(file => file.path.endsWith('.css'));
+    for (const cssFile of cssFiles) {
+        // If the file contains @tailwind directives, replace with the new v4 syntax
+        if (cssFile.content.includes('@tailwind')) {
+            console.log(`Updating Tailwind v4 syntax in ${cssFile.path}`);
+            cssFile.content = '@import "tailwindcss";';
         }
     }
 
-    // Fix permissions with sudo before starting
-    try {
-        await sandbox.commands.run('sudo rm -rf /app/node_modules/.vite', { cwd: '/app' });
-        await sandbox.commands.run('sudo mkdir -p /app/node_modules/.vite', { cwd: '/app' });
-        await sandbox.commands.run('sudo chmod -R 777 /app/node_modules/.vite', { cwd: '/app' });
-    } catch (error) {
-        console.error("Error fixing permissions:", error);
+    // Check if the user provided a postcss.config.js and if it needs to be updated for Tailwind v4
+    const postcssFile = files.find(file => file.path === 'postcss.config.js');
+    if (postcssFile && postcssFile.content.includes('tailwindcss')) {
+        // Fix postcss config to use @tailwindcss/postcss
+        const fixedContent = postcssFile.content.replace(/['"]tailwindcss['"]/, '"@tailwindcss/postcss"');
+        // Update the file with fixed content
+        postcssFile.content = fixedContent;
     }
 
-    // Run the Vite app
-    try {
-        await sandbox.commands.run('npm run dev -- --host', {
-            cwd: '/app',
-            timeoutMs: 0,
-        });
-    } catch (error) {
-        console.error("Error running Vite:", error);
-    }
+    // Write files directly to the working directory (/app)
+    const filesToWrite = files.map(file => ({
+        path: `/app/${file.path}`,
+        data: file.content
+    }));
+
+    await sandbox.files.write(filesToWrite);
+
+    const previewUrl = `https://${sandbox.getHost(5173)}`;
+    console.log('Preview URL: ', previewUrl);
 
     return {
         sbxId: sandbox.sandboxId,
-        template: 'vite-template',
-        url: `https://${sandbox.getHost(5173)}`
+        template: 'vite-support',
+        url: previewUrl
     };
 }
 
