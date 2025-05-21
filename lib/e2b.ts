@@ -41,7 +41,6 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
     await sandbox.files.write(filesToWrite);
 
     const previewUrl = `https://${sandbox.getHost(5173)}`;
-    console.log('Preview URL: ', previewUrl);
 
     return {
         sbxId: sandbox.sandboxId,
