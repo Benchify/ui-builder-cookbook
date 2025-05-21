@@ -25,21 +25,21 @@ export async function POST(request: NextRequest) {
         // Generate the Vue app using OpenAI
         const generatedFiles = await generateApp(description);
 
-        // // Parse through schema before passing to repair
+        // Parse through schema before passing to repair
         const validatedFiles = benchifyFileSchema.parse(generatedFiles);
 
         // // Repair the generated code using Benchify's API
         // const { repairedFiles, buildOutput } = await repairCode(validatedFiles);
 
-        const { sbxId, template, url } = await createSandbox({ files: generatedFiles });
+        const { sbxId, template, url, allFiles } = await createSandbox({ files: generatedFiles });
 
         console.log("Preview URL: ", url);
 
         // Return the results to the client
         return NextResponse.json({
             originalFiles: generatedFiles,
-            // repairedFiles: repairedFiles,
-            // buildOutput: buildOutput,
+            repairedFiles: allFiles, // Use the allFiles from the sandbox
+            buildOutput: `Sandbox created with template: ${template}, ID: ${sbxId}`,
             previewUrl: url,
         });
     } catch (error) {
