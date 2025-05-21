@@ -1,0 +1,950 @@
+---
+title: 'UI Builder Cookbook'
+description: 'Learn how to use Benchify to repair LLM-generated UI components'
+---
+
+# UI Builder Cookbook
+
+This cookbook demonstrates how to use Benchify to fix issues in LLM-generated UI code. We'll build a UI component generator powered by OpenAI, and use Benchify to automatically repair any issues in the generated code, then preview the results using E2B sandboxes.
+
+If you prefer to work with the complete implementation rather than building from scratch, you can find the full source code in the [UI Builder Cookbook repository on GitHub](https://github.com/Benchify/ui-builder-cookbook).
+
+## Setup
+
+For this cookbook, we'll need:
+
+1. A Next.js 15 application with Tailwind CSS v4 and shadcn/ui
+2. OpenAI API for generating UI components
+3. E2B SDK for sandboxed code execution
+4. Benchify API for code repair
+
+Let's set up our project structure:
+
+```
+/ui-builder-cookbook
+  /app
+    /api
+      /generate/route.ts
+    /page.tsx
+    /layout.tsx
+    /globals.css
+  /components
+    /ui
+    /ui-builder
+      /prompt-form.tsx
+      /preview-card.tsx
+      /code-editor.tsx
+  /lib
+    /openai.ts
+    /e2b.ts
+    /benchify.ts
+    /schemas.ts
+    /file-filter.ts
+    /sandbox-helpers.ts
+    /prompts.ts
+  /templates
+    /vite-support
+      /e2b.Dockerfile
+  /public
+```
+
+Install the required dependencies:
+
+```bash
+# Core dependencies
+npm install next@latest react@latest react-dom@latest
+npm install @e2b/code-interpreter @e2b/sdk
+npm install openai @ai-sdk/openai ai
+npm install diff zod
+
+# UI components
+npm install tailwindcss@latest
+npm install class-variance-authority clsx tailwind-merge
+npm install lucide-react
+npm install react-hook-form @hookform/resolvers
+npm install react-syntax-highlighter @types/react-syntax-highlighter
+
+# Setup shadcn/ui components
+npx shadcn-ui@latest init
+npx shadcn-ui@latest add button card form label switch textarea tabs scroll-area
+
+# Install E2B CLI
+npm install -g @e2b/cli
+```
+
+Configure your environment by creating a `.env.local` file:
+
+```
+BENCHIFY_API_KEY=your_benchify_api_key
+OPENAI_API_KEY=your_openai_api_key
+E2B_API_KEY=your_e2b_api_key
+```
+
+## Schema Definitions
+
+Let's define our schemas for API requests and responses:
+
+```typescript
+// lib/schemas.ts
+import { z } from 'zod';
+
+// Benchify API schema - matching the exact format in the API docs
+export const benchifyFileSchema = z.array(z.object({
+    path: z.string(),
+    content: z.string()
+}));
+
+export const benchifyRequestSchema = z.object({
+    repoUrl: z.string().optional(),
+    files: benchifyFileSchema.optional(),
+    jobName: z.string(),
+    buildCmd: z.string()
+});
+
+// Type for the Benchify Fixer API request
+export type BenchifyFixerRequest = z.infer<typeof benchifyRequestSchema>;
+
+// Response from Benchify API
+export interface BenchifyFixerResponse {
+    build_status: number;
+    build_output: string;
+    diff: string;
+}
+
+// Component generation schema
+export const componentSchema = z.object({
+    type: z.string(),
+    description: z.string(),
+    requirements: z.string().optional(),
+    preview: z.boolean().default(false)
+});
+
+export type ComponentRequest = z.infer<typeof componentSchema>;
+
+// Complete response to the client
+export interface GenerateResponse {
+    originalFiles: z.infer<typeof benchifyFileSchema>;
+    repairedFiles: z.infer<typeof benchifyFileSchema>;
+    buildOutput: string;
+    previewUrl?: string;
+}
+```
+
+## OpenAI Integration
+
+Next, let's implement the OpenAI client for generating UI components:
+
+```typescript
+// lib/openai.ts
+import OpenAI from 'openai';
+import { createAI, getMutableAIState } from 'ai';
+import { benchifyFileSchema } from './schemas';
+import { z } from 'zod';
+import { componentTemplate } from './prompts';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+export async function generateApp(description: string): Promise<z.infer<typeof benchifyFileSchema>> {
+  console.log('Generating app with description:', description);
+  
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4-turbo',
+      temperature: 0.7,
+      messages: [
+        {
+          role: 'system',
+          content: componentTemplate.system
+        },
+        {
+          role: 'user',
+          content: componentTemplate.user.replace('{{DESCRIPTION}}', description)
+        }
+      ],
+      response_format: { type: 'json_object' }
+    });
+
+    const responseContent = completion.choices[0].message.content;
+    if (!responseContent) {
+      throw new Error('Empty response from OpenAI');
+    }
+
+    // Parse the JSON response
+    const response = JSON.parse(responseContent);
+    
+    if (!response.files || !Array.isArray(response.files)) {
+      throw new Error('Invalid response format from OpenAI');
+    }
+
+    // Map to the expected format for Benchify
+    const files = response.files.map((file: any) => ({
+      path: file.name,
+      content: file.content
+    }));
+
+    return files;
+  } catch (error) {
+    console.error('Error generating app:', error);
+    throw error;
+  }
+}
+```
+
+For our prompts, we'll create a dedicated file:
+
+```typescript
+// lib/prompts.ts
+export const componentTemplate = {
+  system: `You are an expert UI developer. Your job is to create modern React components using Next.js 15, Tailwind CSS v4, and shadcn/ui components.
+
+When creating components:
+- Use the latest React practices with hooks
+- Leverage shadcn/ui components where appropriate
+- Implement responsive design with Tailwind CSS v4
+- Ensure all imports are correct and complete
+- Make components accessible
+- Include necessary TypeScript types
+
+Your output must be a valid JSON object with a 'files' array. Each file should have a 'name' and 'content' property.`,
+
+  user: `Create a UI component based on this description:
+
+{{DESCRIPTION}}
+
+Use Next.js 15, Tailwind CSS v4, and shadcn/ui components.
+
+Required files:
+1. Main component file
+2. Any additional utility or helper files needed
+
+Return your answer as a JSON object with a 'files' array containing objects with 'name' and 'content' properties. 
+Format:
+{
+  "files": [
+    { "name": "filepath/filename.tsx", "content": "// code here" },
+    ...more files if needed
+  ]
+}
+
+Don't include any explanations, just the JSON.`
+};
+```
+
+## Benchify Integration
+
+Now, let's set up the Benchify client to repair our generated code:
+
+```typescript
+// lib/benchify.ts
+import {
+    benchifyRequestSchema,
+    benchifyFileSchema,
+    type BenchifyFixerResponse
+} from './schemas';
+import { applyPatch } from 'diff';
+import { z } from 'zod';
+
+const BENCHIFY_API_KEY = process.env.BENCHIFY_API_KEY;
+const BENCHIFY_API_URL = 'https://api.benchify.com/v1';
+
+if (!BENCHIFY_API_KEY) {
+    throw new Error('BENCHIFY_API_KEY is not set');
+}
+
+// Repair code using Benchify Fixer API
+export async function repairCode(files: z.infer<typeof benchifyFileSchema>): Promise<{ repairedFiles: z.infer<typeof benchifyFileSchema>, buildOutput: string }> {
+    try {
+        // Simple build command to verify syntax
+        const buildCmd = "npm run dev";
+
+        // Validate request against Benchify API schema
+        const requestData = benchifyRequestSchema.parse({
+            files,
+            jobName: "ui-component-fix",
+            buildCmd
+        });
+
+        console.log('Sending request to Benchify:', {
+            url: `${BENCHIFY_API_URL}/fixer`,
+            filesCount: files.length,
+            jobName: requestData.jobName
+        });
+
+        // Send request to Benchify API
+        const response = await fetch(`${BENCHIFY_API_URL}/fixer`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${BENCHIFY_API_KEY}`,
+            },
+            body: JSON.stringify(requestData),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            console.error('Benchify API Error:', {
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries()),
+                errorData,
+                requestData: {
+                    filesCount: files.length,
+                    jobName: requestData.jobName,
+                    buildCmd: requestData.buildCmd
+                }
+            });
+            throw new Error(`Benchify API error: ${response.statusText}`);
+        }
+
+        // Parse the response
+        const result = await response.json() as BenchifyFixerResponse;
+        console.log('Benchify API Response:', {
+            buildStatus: result.build_status,
+            hasDiff: !!result.diff,
+            buildOutputLength: result.build_output?.length || 0
+        });
+
+        // Parse and apply patches to each file if diff exists
+        const parsedFiles = benchifyFileSchema.parse(files);
+        const repairedFiles = parsedFiles.map(file => {
+            if (result.diff) {
+                const patchResult = applyPatch(file.content, result.diff);
+                return {
+                    path: file.path,
+                    content: typeof patchResult === 'string' ? patchResult : file.content
+                };
+            }
+            return file;
+        });
+
+        return { repairedFiles, buildOutput: result.build_output };
+    } catch (error) {
+        console.error('Error repairing code:', error);
+        throw error;
+    }
+}
+```
+
+## Creating an E2B Template
+
+Before we can use E2B for sandboxed previews, we need to create a custom template that supports Vite, React, and Tailwind CSS v4. E2B templates are Docker containers configured for specific development environments.
+
+### 1. Create the Dockerfile
+
+First, create a directory structure for our template:
+
+```bash
+mkdir -p templates/vite-support
+```
+
+Then create a file named `e2b.Dockerfile` in the `templates/vite-support` directory:
+
+```docker
+# templates/vite-support/e2b.Dockerfile
+FROM node:21-slim
+
+# Install necessary tools
+RUN apt-get update && apt-get install -y bash curl && rm -rf /var/lib/apt/lists/*
+
+# Set working directory directly
+WORKDIR /app
+
+# Set up Vite with React + TypeScript
+RUN npm create vite@latest . -- --template react-ts
+
+# Clean up boilerplate files
+RUN rm -rf /app/src/assets/* \
+    && rm -f /app/src/App.css \
+    && rm -f /app/public/vite.svg \
+    && echo 'import React from "react";\n\nconst App: React.FC = () => {\n  return (\n    <div className="flex min-h-screen items-center justify-center">\n      <h1 className="text-2xl font-bold">Your App</h1>\n    </div>\n  );\n};\n\nexport default App;' > /app/src/App.tsx \
+    && echo 'import React from "react";\nimport ReactDOM from "react-dom/client";\nimport App from "./App";\nimport "./index.css";\n\nReactDOM.createRoot(document.getElementById("root")!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);' > /app/src/main.tsx
+
+# Install all dependencies
+RUN npm install
+
+# Install Tailwind CSS with Vite plugin (v4 approach)
+RUN npm install -D tailwindcss @tailwindcss/vite
+
+# Create tailwind.config.js for Tailwind v4 (with proper path)
+RUN echo 'export default {\n  content: [\n    "./index.html",\n    "./src/**/*.{js,ts,jsx,tsx}",\n  ],\n  theme: {\n    extend: {},\n  },\n  plugins: [],\n}' > /app/tailwind.config.js
+
+# Create postcss.config.js for Tailwind v4
+RUN echo 'export default {\n  plugins: {},\n}' > /app/postcss.config.js
+
+# Update vite.config.ts to use the Tailwind plugin and include allowedHosts
+RUN echo 'import { defineConfig } from "vite"\nimport react from "@vitejs/plugin-react"\nimport tailwindcss from "@tailwindcss/vite"\n\nexport default defineConfig({\n  plugins: [\n    react(),\n    tailwindcss(),\n  ],\n  server: {\n    host: true,\n    allowedHosts: [".e2b.app"],\n  },\n})' > /app/vite.config.ts
+
+# Configure Tailwind CSS (simplified import for v4)
+RUN echo '@import "tailwindcss";' > /app/src/index.css
+
+# Replace tsconfig.json with a complete version that works standalone
+RUN echo '{\n  "compilerOptions": {\n    "target": "ES2020",\n    "useDefineForClassFields": true,\n    "lib": ["ES2020", "DOM", "DOM.Iterable"],\n    "module": "ESNext",\n    "skipLibCheck": true,\n    "moduleResolution": "bundler",\n    "allowImportingTsExtensions": true,\n    "resolveJsonModule": true,\n    "isolatedModules": true,\n    "noEmit": true,\n    "jsx": "react-jsx",\n    "strict": true,\n    "noUnusedLocals": true,\n    "noUnusedParameters": true,\n    "noFallthroughCasesInSwitch": true\n  },\n  "include": ["src"]\n}' > /app/tsconfig.json
+
+# Make directory writable (this is crucial)
+RUN chmod -R 777 /app
+
+# Set proper entrypoint
+ENTRYPOINT ["bash", "-c", "cd /app && npm run dev -- --host --port 5173"]
+```
+
+This Dockerfile:
+- Uses Node.js 21 as the base image
+- Sets up a Vite project with React and TypeScript
+- Configures Tailwind CSS v4 with the necessary plugins
+- Exposes port 5173 for Vite's development server
+- Makes the `/app` directory writable so we can add files at runtime
+
+### 2. Build and Push the Template
+
+Once you've created the Dockerfile, use the E2B CLI to build and push your template:
+
+```bash
+# Install E2B CLI if you haven't already
+npm install -g @e2b/cli
+
+# Log in to E2B (required only once)
+e2b login
+
+# Build and push the template
+e2b template build --name "vite-support" --path ./templates/vite-support
+```
+
+This will build the Docker image and push it to E2B's registry. The template name "vite-support" is the identifier we'll use in our code to reference this template.
+
+### 3. Verify the Template
+
+To verify that your template was successfully pushed and is available:
+
+```bash
+e2b template list
+```
+
+You should see "vite-support" in the list of available templates.
+
+Now you can use this template in your E2B sandbox integration, as we'll see in the `lib/e2b.ts` file.
+
+## E2B Integration for Sandbox Previews
+
+Let's implement the E2B integration for sandboxed previews:
+
+```typescript
+// lib/e2b.ts
+import { Sandbox } from '@e2b/code-interpreter';
+import { benchifyFileSchema } from './schemas';
+import { z } from 'zod';
+import { fetchAllSandboxFiles } from './file-filter';
+import { applyTransformations } from './sandbox-helpers';
+
+const E2B_API_KEY = process.env.E2B_API_KEY;
+
+if (!E2B_API_KEY) {
+    throw new Error('E2B_API_KEY is not set');
+}
+
+export async function createSandbox({ files }: { files: z.infer<typeof benchifyFileSchema> }) {
+    // Create sandbox from the improved template
+    const sandbox = await Sandbox.create('vite-support', { apiKey: E2B_API_KEY });
+    console.log(`Sandbox created: ${sandbox.sandboxId}`);
+
+    // Apply transformations (including Tailwind v4 syntax)
+    const transformedFiles = applyTransformations(files);
+
+    // Write files directly to the working directory (/app)
+    const filesToWrite = transformedFiles.map(file => ({
+        path: `/app/${file.path}`,
+        data: file.content
+    }));
+
+    await sandbox.files.write(filesToWrite);
+
+    // Get all files from the sandbox using the improved filter logic
+    const allFiles = await fetchAllSandboxFiles(sandbox);
+
+    const previewUrl = `https://${sandbox.getHost(5173)}`;
+
+    return {
+        sbxId: sandbox.sandboxId,
+        template: 'vite-support',
+        url: previewUrl,
+        allFiles: allFiles
+    };
+}
+```
+
+For file filtering and transformations, we create helper functions:
+
+```typescript
+// lib/file-filter.ts
+import { Sandbox } from '@e2b/code-interpreter';
+import path from 'path';
+
+// Improved file filter that avoids node_modules and other large directories
+const ignoreDirs = [
+  'node_modules',
+  '.git',
+  'dist',
+  '.next',
+  'build',
+  'out',
+];
+
+const ignoreExts = [
+  '.log',
+  '.lock',
+  '.binary',
+];
+
+export async function fetchAllSandboxFiles(sandbox: Sandbox) {
+  try {
+    console.log('Listing all files in the sandbox...');
+    const appDir = '/app';
+    const files = await listFilesRecursively(sandbox, appDir);
+    console.log(`Found ${files.length} files`);
+    return files;
+  } catch (error) {
+    console.error('Error fetching sandbox files:', error);
+    return [];
+  }
+}
+
+async function listFilesRecursively(sandbox: Sandbox, dirPath: string) {
+  const allFiles = [];
+  const items = await sandbox.filesystem.list(dirPath);
+
+  for (const item of items) {
+    const itemPath = `${dirPath}/${item.name}`;
+    const relativePath = itemPath.replace('/app/', '');
+
+    // Skip ignored directories and files
+    if (shouldIgnoreItem(item.name)) {
+      continue;
+    }
+
+    if (item.type === 'directory') {
+      // Recursively list files in directory
+      const nestedFiles = await listFilesRecursively(sandbox, itemPath);
+      allFiles.push(...nestedFiles);
+    } else if (item.type === 'file') {
+      try {
+        // Read file content
+        const fileContent = await sandbox.filesystem.readText(itemPath);
+        allFiles.push({
+          path: relativePath,
+          content: fileContent
+        });
+      } catch (error) {
+        console.error(`Error reading file ${itemPath}:`, error);
+      }
+    }
+  }
+
+  return allFiles;
+}
+
+function shouldIgnoreItem(name: string) {
+  const ext = path.extname(name);
+  return (
+    ignoreDirs.includes(name) ||
+    ignoreExts.includes(ext) ||
+    name.startsWith('.') ||
+    name.endsWith('~')
+  );
+}
+```
+
+## API Route for Generation
+
+Now, let's implement the API route to handle component generation:
+
+```typescript
+// app/api/generate/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { generateApp } from '@/lib/openai';
+import { repairCode } from '@/lib/benchify';
+import { createSandbox } from '@/lib/e2b';
+import { componentSchema } from '@/lib/schemas';
+import { benchifyFileSchema } from '@/lib/schemas';
+
+export async function POST(request: NextRequest) {
+    try {
+        const body = await request.json();
+
+        // Validate the request using Zod schema
+        const validationResult = componentSchema.safeParse(body);
+
+        if (!validationResult.success) {
+            return NextResponse.json(
+                { error: 'Invalid request format', details: validationResult.error.format() },
+                { status: 400 }
+            );
+        }
+
+        const { description } = validationResult.data;
+
+        // Generate the UI component using OpenAI
+        const generatedFiles = await generateApp(description);
+
+        // Parse through schema before passing to repair
+        const validatedFiles = benchifyFileSchema.parse(generatedFiles);
+
+        // Repair the generated code using Benchify's API
+        const { repairedFiles, buildOutput } = await repairCode(validatedFiles);
+
+        // Create a sandbox for preview
+        const { sbxId, template, url, allFiles } = await createSandbox({ files: repairedFiles });
+
+        console.log("Preview URL: ", url);
+
+        // Return the results to the client
+        return NextResponse.json({
+            originalFiles: generatedFiles,
+            repairedFiles: allFiles, // Use the allFiles from the sandbox
+            buildOutput: `Sandbox created with template: ${template}, ID: ${sbxId}`,
+            previewUrl: url,
+        });
+    } catch (error) {
+        console.error('Error generating app:', error);
+        return NextResponse.json(
+            {
+                error: 'Failed to generate app',
+                message: error instanceof Error ? error.message : String(error)
+            },
+            { status: 500 }
+        );
+    }
+}
+```
+
+## Frontend Components
+
+Let's implement the UI components for our application:
+
+First, the main page:
+
+```tsx
+// app/page.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { PromptForm } from '@/components/ui-builder/prompt-form';
+import { PreviewCard } from '@/components/ui-builder/preview-card';
+import { Card, CardContent } from '@/components/ui/card';
+import { benchifyFileSchema } from '@/lib/schemas';
+import { z } from 'zod';
+
+export default function Home() {
+  const [result, setResult] = useState<{
+    repairedFiles?: z.infer<typeof benchifyFileSchema>;
+    originalFiles?: z.infer<typeof benchifyFileSchema>;
+    buildOutput: string;
+    previewUrl: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (result) {
+      console.log(result);
+    }
+  }, [result]);
+
+  return (
+    <main className="min-h-screen flex flex-col items-center justify-center bg-background">
+      <div className="w-full max-w-3xl mx-auto">
+        <h1 className="text-4xl md:text-6xl font-bold mb-4 text-center">
+          UI App Builder
+        </h1>
+        <p className="text-lg text-muted-foreground mb-8 text-center">
+          Generate UI components with AI and automatically repair issues with Benchify
+        </p>
+        {!result ? (
+          <Card className="border-border bg-card">
+            <CardContent className="pt-6">
+              <PromptForm onGenerate={setResult} />
+            </CardContent>
+          </Card>
+        ) : (
+          <PreviewCard
+            previewUrl={result.previewUrl}
+            code={result.repairedFiles || result.originalFiles || []}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+```
+
+The PromptForm component:
+
+```tsx
+// components/ui-builder/prompt-form.tsx
+'use client';
+
+import { useState } from 'react';
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form"
+import { Textarea } from '@/components/ui/textarea';
+
+const formSchema = z.object({
+    description: z.string().min(10, {
+        message: "Description must be at least 10 characters.",
+    }),
+})
+
+export function PromptForm({
+    onGenerate
+}: {
+    onGenerate: (result: any) => void
+}) {
+    const [loading, setLoading] = useState(false);
+
+    const form = useForm<z.infer<typeof formSchema>>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            description: "",
+        },
+    })
+
+    async function onSubmit(values: z.infer<typeof formSchema>) {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: 'component',
+                    description: values.description,
+                    preview: true,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to generate component');
+            }
+
+            const result = await response.json();
+            onGenerate(result);
+        } catch (error) {
+            console.error('Error generating component:', error);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>What would you like to build?</FormLabel>
+                            <FormControl>
+                                <Textarea
+                                    placeholder="Describe what you want to create..."
+                                    className="min-h-32 resize-none bg-muted border-border"
+                                    {...field}
+                                />
+                            </FormControl>
+                            <FormMessage className="text-destructive" />
+                        </FormItem>
+                    )}
+                />
+                <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                    {loading ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Building...
+                        </>
+                    ) : (
+                        'Build it'
+                    )}
+                </Button>
+            </form>
+        </Form>
+    );
+}
+```
+
+The PreviewCard component:
+
+```tsx
+// components/ui-builder/preview-card.tsx
+'use client';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { CodeEditor } from "@/components/ui-builder/code-editor";
+import { benchifyFileSchema } from "@/lib/schemas";
+import { z } from "zod";
+
+export function PreviewCard({
+  previewUrl,
+  code
+}: {
+  previewUrl: string;
+  code: z.infer<typeof benchifyFileSchema>;
+}) {
+  return (
+    <div className="rounded-lg border bg-card shadow-sm">
+      <Tabs defaultValue="preview" className="w-full">
+        <TabsList className="w-full justify-start border-b rounded-none px-4">
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="code">Code</TabsTrigger>
+        </TabsList>
+        <TabsContent value="preview" className="p-0">
+          <iframe 
+            src={previewUrl} 
+            className="w-full h-[600px] rounded-b-lg"
+          />
+        </TabsContent>
+        <TabsContent value="code" className="p-0">
+          <ScrollArea className="h-[600px] w-full rounded-b-lg bg-muted">
+            <div className="p-4 space-y-4">
+              {code.map((file, i) => (
+                <CodeEditor
+                  key={i}
+                  filename={file.path}
+                  code={file.content}
+                />
+              ))}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+```
+
+And the CodeEditor component:
+
+```tsx
+// components/ui-builder/code-editor.tsx
+'use client';
+
+import { useState } from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+// Map file extensions to language for syntax highlighting
+const getLanguageFromFilename = (filename: string) => {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'js': return 'javascript';
+    case 'jsx': return 'jsx';
+    case 'ts': return 'typescript';
+    case 'tsx': return 'tsx';
+    case 'css': return 'css';
+    case 'html': return 'html';
+    case 'json': return 'json';
+    case 'md': return 'markdown';
+    default: return 'typescript';
+  }
+};
+
+export function CodeEditor({
+  filename,
+  code
+}: {
+  filename: string;
+  code: string;
+}) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const language = getLanguageFromFilename(filename);
+
+  return (
+    <Card className="bg-card border-border shadow-sm">
+      <CardHeader className="p-3 cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
+        <CardTitle className="text-sm font-mono flex items-center">
+          <span className="mr-2 text-muted-foreground">{isCollapsed ? '▶' : '▼'}</span>
+          {filename}
+        </CardTitle>
+      </CardHeader>
+      {!isCollapsed && (
+        <CardContent className="p-0">
+          <SyntaxHighlighter
+            language={language}
+            style={vscDarkPlus}
+            customStyle={{
+              margin: 0,
+              borderTopLeftRadius: 0,
+              borderTopRightRadius: 0,
+              fontSize: '14px',
+              maxHeight: '400px',
+            }}
+          >
+            {code}
+          </SyntaxHighlighter>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+```
+
+## Common Issues Fixed by Benchify
+
+The Benchify Fixer API excels at fixing common issues in LLM-generated UI components:
+
+1. **Missing Imports**: Automatically adds required imports that were omitted by the LLM, such as React hooks or shadcn/ui components.
+
+2. **TypeScript Errors**: Resolves type mismatches, missing type annotations, and incorrect interface implementations.
+
+3. **Syntax Fixes**: Corrects JavaScript and TypeScript syntax errors, including missing brackets, parentheses, and semicolons.
+
+4. **React-Specific Issues**: Fixes common React problems like invalid JSX, improper hook usage, and component structure issues.
+
+5. **Tailwind Syntax**: Updates outdated Tailwind class naming conventions to match the latest Tailwind v4 syntax.
+
+## Direct Pipeline from LLM to Benchify
+
+Our implementation demonstrates a streamlined approach for connecting LLM-generated code directly to Benchify for repair:
+
+1. **Generation**: Use OpenAI to generate UI components based on user descriptions
+2. **Validation**: Use Zod schemas to validate the structure of generated code
+3. **Repair**: Send the validated code directly to Benchify's API for automatic repair
+4. **Preview**: Deploy the repaired code to an E2B sandbox for live preview
+
+This approach offers several advantages:
+
+1. **Simplicity**: The direct pipeline reduces complexity and maintenance overhead
+2. **Type Safety**: Using Zod schemas ensures type safety throughout the process
+3. **Reliability**: Benchify automatically handles common issues, improving the success rate of generated components
+4. **Immediate Feedback**: Users can see both the repaired code and a live preview in seconds
+
+## Conclusion
+
+This cookbook demonstrates how to build a powerful UI component generator by integrating:
+
+1. **AI Generation**: OpenAI for creating initial UI components based on user descriptions
+2. **Automatic Repair**: Benchify for fixing common issues in LLM-generated code
+3. **Live Preview**: E2B for providing sandboxed previews of the repaired components
+
+The result is a seamless workflow that takes a user description and transforms it into a working UI component, handling all the technical details of repair and preview behind the scenes.
+
+By leveraging Benchify's code repair capabilities, developers can significantly improve the reliability of AI-generated code without manual intervention, saving time and reducing frustration.
+
+This pattern can be extended to more complex scenarios, such as generating entire applications, handling multiple components with interactions, or integrating with specific design systems and frameworks. 
+
+To explore the complete working implementation of this cookbook, visit the [UI Builder Cookbook repository on GitHub](https://github.com/Benchify/ui-builder-cookbook). You can clone the repository and use it as a starting point for your own projects or as a reference implementation. 
