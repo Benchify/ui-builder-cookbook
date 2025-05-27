@@ -1,10 +1,14 @@
 // app/api/generate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { generateApp } from '@/lib/openai';
-import { repairCode } from '@/lib/benchify';
 import { createSandbox } from '@/lib/e2b';
 import { componentSchema } from '@/lib/schemas';
-import { benchifyFileSchema } from '@/lib/schemas';
+import { Benchify } from 'benchify';
+import { applyPatch } from 'diff';
+
+const benchify = new Benchify({
+    apiKey: process.env.BENCHIFY_API_KEY,
+});
 
 export async function POST(request: NextRequest) {
     try {
@@ -25,15 +29,30 @@ export async function POST(request: NextRequest) {
         // Generate the Vue app using OpenAI
         const generatedFiles = await generateApp(description);
 
-        // Parse through schema before passing to repair
-        const validatedFiles = benchifyFileSchema.parse(generatedFiles);
+        // Repair the generated code using Benchify's API
+        const { data } = await benchify.fixer.run({
+            files: generatedFiles.map(file => ({
+                path: file.path,
+                contents: file.content
+            }))
+        });
 
-        // // Repair the generated code using Benchify's API
-        // const { repairedFiles, buildOutput } = await repairCode(validatedFiles);
+        let repairedFiles = generatedFiles;
+        if (data) {
+            const { success, diff } = data;
 
-        const { sbxId, template, url, allFiles } = await createSandbox({ files: generatedFiles });
+            if (success && diff) {
+                repairedFiles = generatedFiles.map(file => {
+                    const patchResult = applyPatch(file.content, diff);
+                    return {
+                        ...file,
+                        content: typeof patchResult === 'string' ? patchResult : file.content
+                    };
+                });
+            }
+        }
 
-        console.log("Preview URL: ", url);
+        const { sbxId, template, url, allFiles } = await createSandbox({ files: repairedFiles });
 
         // Return the results to the client
         return NextResponse.json({
