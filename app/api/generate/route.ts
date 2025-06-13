@@ -10,6 +10,28 @@ const benchify = new Benchify({
     apiKey: process.env.BENCHIFY_API_KEY,
 });
 
+const debug = false;
+const buggyCode = [
+    {
+        path: "src/App.tsx",
+        content: `import React from 'react';
+
+const App = () => {
+    const message = "Hello World;  // Missing closing quote
+    const title = 'Welcome to my app';
+    
+    return (
+        <div>
+            <h1>{title}</h1>
+            <p>{message}</p>
+        </div>
+    );
+};
+
+export default App;`
+    }
+];
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -27,7 +49,12 @@ export async function POST(request: NextRequest) {
         const { description } = validationResult.data;
 
         // Generate the Vue app using OpenAI
-        const generatedFiles = await generateApp(description);
+        let generatedFiles;
+        if (debug) {
+            generatedFiles = buggyCode;
+        } else {
+            generatedFiles = await generateApp(description);
+        }
 
         // Repair the generated code using Benchify's API
         // const { data } = await benchify.fixer.run({

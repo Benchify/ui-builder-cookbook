@@ -3,6 +3,7 @@ import { benchifyFileSchema } from './schemas';
 import { z } from 'zod';
 import { fetchAllSandboxFiles } from './file-filter';
 import { applyTransformations } from './sandbox-helpers';
+import { detectCodeErrors, parseTypeScriptErrors } from './error-detection';
 
 const E2B_API_KEY = process.env.E2B_API_KEY;
 
@@ -59,8 +60,11 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
                 console.log('New packages installed successfully:', result.stdout);
                 if (result.stderr) {
                     console.warn('npm install warnings:', result.stderr);
-                    // Parse npm install errors
-                    if (result.stderr.includes('npm ERR!')) {
+                    // Only treat critical npm errors as build errors (not warnings or peer dep issues)
+                    if (result.stderr.includes('npm ERR!') &&
+                        (result.stderr.includes('ENOTFOUND') ||
+                            result.stderr.includes('ECONNREFUSED') ||
+                            result.stderr.includes('permission denied'))) {
                         buildErrors.push({
                             type: 'build',
                             message: 'Package installation failed: ' + result.stderr.split('npm ERR!')[1]?.trim()
@@ -79,39 +83,47 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
         }
     }
 
-    // Run TypeScript check to catch type errors
+    // Start the dev server and check logs for errors (let Vite handle error detection)
     try {
-        console.log('Running TypeScript check...');
-        const tscResult = await sandbox.commands.run('cd /app && npx tsc --noEmit --skipLibCheck');
+        console.log('Starting dev server...');
+        // Start dev server in background
+        const devServerResult = await sandbox.commands.run('cd /app && npm run dev', { background: true });
 
-        if (tscResult.exitCode !== 0 && tscResult.stderr) {
-            console.log('TypeScript errors found:', tscResult.stderr);
-            const tsErrors = parseTypeScriptErrors(tscResult.stderr);
-            buildErrors.push(...tsErrors);
+        console.log('Dev server command executed');
+        console.log('Dev server exit code:', devServerResult.exitCode);
+        console.log('Dev server stderr:', devServerResult.stderr || 'No stderr');
+        console.log('Dev server stdout:', devServerResult.stdout || 'No stdout');
+
+        // Give it a moment to start and potentially fail
+        console.log('Waiting 3 seconds for dev server to start...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // Check the initial output for immediate errors
+        if (devServerResult.stderr || devServerResult.stdout) {
+            const allOutput = (devServerResult.stderr || '') + '\n' + (devServerResult.stdout || '');
+
+            // Use the error detection module
+            const errorResult = detectCodeErrors(allOutput);
+
+            if (errorResult.hasErrors) {
+                console.log('🔴 CODE ERRORS DETECTED!');
+                buildErrors.push(...errorResult.errors);
+            } else if (errorResult.isInfrastructureOnly) {
+                console.log('⚠️  Only infrastructure errors detected (ignoring)');
+            } else {
+                console.log('✅ No errors detected');
+            }
+        } else {
+            console.log('⚠️  No stderr or stdout from dev server command');
         }
-    } catch (error) {
-        console.error('TypeScript check failed:', error);
-        buildErrors.push({
-            type: 'typescript',
-            message: `TypeScript check failed: ${error instanceof Error ? error.message : String(error)}`
-        });
-    }
 
-    // Try to build the project to catch build-time errors
-    try {
-        console.log('Running build check...');
-        const buildResult = await sandbox.commands.run('cd /app && npm run build');
-
-        if (buildResult.exitCode !== 0) {
-            console.log('Build errors found:', buildResult.stderr);
-            const viteErrors = parseViteBuildErrors(buildResult.stderr);
-            buildErrors.push(...viteErrors);
-        }
+        console.log('Dev server started, output checked');
+        console.log('Total build errors found:', buildErrors.length);
     } catch (error) {
-        console.error('Build check failed:', error);
+        console.error('Dev server check failed:', error);
         buildErrors.push({
             type: 'build',
-            message: `Build failed: ${error instanceof Error ? error.message : String(error)}`
+            message: `Dev server failed to start: ${error instanceof Error ? error.message : String(error)}`
         });
     }
 
@@ -130,60 +142,7 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
     };
 }
 
-function parseTypeScriptErrors(stderr: string): BuildError[] {
-    const errors: BuildError[] = [];
-    const lines = stderr.split('\n');
 
-    for (const line of lines) {
-        // Match TypeScript error pattern: file(line,column): error TS####: message
-        const match = line.match(/(.+)\((\d+),(\d+)\): error TS\d+: (.+)/);
-        if (match) {
-            const [, file, line, column, message] = match;
-            errors.push({
-                type: 'typescript',
-                message: message.trim(),
-                file: file.replace('/app/', ''),
-                line: parseInt(line),
-                column: parseInt(column)
-            });
-        }
-    }
-
-    // If no specific errors found but stderr has content, add generic error
-    if (errors.length === 0 && stderr.trim()) {
-        errors.push({
-            type: 'typescript',
-            message: 'TypeScript compilation failed: ' + stderr.trim()
-        });
-    }
-
-    return errors;
-}
-
-function parseViteBuildErrors(stderr: string): BuildError[] {
-    const errors: BuildError[] = [];
-    const lines = stderr.split('\n');
-
-    for (const line of lines) {
-        // Match Vite build error patterns
-        if (line.includes('error') || line.includes('Error')) {
-            errors.push({
-                type: 'build',
-                message: line.trim()
-            });
-        }
-    }
-
-    // If no specific errors found but stderr has content, add generic error
-    if (errors.length === 0 && stderr.trim()) {
-        errors.push({
-            type: 'build',
-            message: 'Build failed: ' + stderr.trim()
-        });
-    }
-
-    return errors;
-}
 
 function extractNewPackages(packageJsonContent: string): string[] {
     try {
