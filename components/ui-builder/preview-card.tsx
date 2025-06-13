@@ -129,8 +129,8 @@ export function PreviewCard({
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className={`text-sm font-medium ${isCompleted ? 'text-green-700 dark:text-green-400' :
-                                                            isCurrent ? 'text-primary' :
-                                                                'text-muted-foreground'
+                                                        isCurrent ? 'text-primary' :
+                                                            'text-muted-foreground'
                                                         }`}>
                                                         {step.label}
                                                     </p>
