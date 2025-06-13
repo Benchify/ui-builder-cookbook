@@ -17,10 +17,20 @@ interface BuildError {
     column?: number;
 }
 
+interface FixResult {
+    originalFiles: z.infer<typeof benchifyFileSchema>;
+    repairedFiles: z.infer<typeof benchifyFileSchema>;
+    buildOutput: string;
+    previewUrl: string;
+    buildErrors?: BuildError[];
+    hasErrors: boolean;
+    editInstruction?: string;
+}
+
 interface ErrorDisplayProps {
     errors: BuildError[];
     currentFiles?: z.infer<typeof benchifyFileSchema>;
-    onFixComplete?: (result: any) => void;
+    onFixComplete?: (result: FixResult) => void;
 }
 
 export function ErrorDisplay({ errors, currentFiles, onFixComplete }: ErrorDisplayProps) {
@@ -196,7 +206,7 @@ Please make the minimal changes necessary to resolve these errors while maintain
                         <li>• Verify that all props are properly typed</li>
                         <li>• Make sure all dependencies are correctly installed</li>
                         <li>• Try regenerating the component with more specific requirements</li>
-                        {currentFiles && <li>• Use the "Fix with AI" button above for automatic error resolution</li>}
+                        {currentFiles && <li>• Use the &quot;Fix with AI&quot; button above for automatic error resolution</li>}
                     </ul>
                 </div>
             </div>

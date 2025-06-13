@@ -100,27 +100,27 @@ export async function POST(request: NextRequest) {
         }
 
         // Repair the generated code using Benchify's API
-        // const { data } = await benchify.fixer.run({
-        //     files: filesToSandbox.map(file => ({
-        //         path: file.path,
-        //         contents: file.content
-        //     }))
-        // });
+        const { data } = await benchify.fixer.run({
+            files: filesToSandbox.map(file => ({
+                path: file.path,
+                contents: file.content
+            }))
+        });
 
         let repairedFiles = filesToSandbox;
-        // if (data) {
-        //     const { success, diff } = data;
+        if (data) {
+            const { success, diff } = data;
 
-        //     if (success && diff) {
-        //         repairedFiles = filesToSandbox.map(file => {
-        //             const patchResult = applyPatch(file.content, diff);
-        //             return {
-        //                 ...file,
-        //                 content: typeof patchResult === 'string' ? patchResult : file.content
-        //             };
-        //         });
-        //     }
-        // }
+            if (success && diff) {
+                repairedFiles = filesToSandbox.map(file => {
+                    const patchResult = applyPatch(file.content, diff);
+                    return {
+                        ...file,
+                        content: typeof patchResult === 'string' ? patchResult : file.content
+                    };
+                });
+            }
+        }
 
         const sandboxResult = await createSandbox({ files: repairedFiles });
 
