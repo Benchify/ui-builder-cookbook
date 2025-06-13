@@ -1,9 +1,13 @@
 'use client';
 
-import { AlertCircle, Code, FileX, Terminal } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, Code, FileX, Terminal, Wand2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { benchifyFileSchema } from '@/lib/schemas';
+import { z } from 'zod';
 
 interface BuildError {
     type: 'typescript' | 'build' | 'runtime';
@@ -15,9 +19,13 @@ interface BuildError {
 
 interface ErrorDisplayProps {
     errors: BuildError[];
+    currentFiles?: z.infer<typeof benchifyFileSchema>;
+    onFixComplete?: (result: any) => void;
 }
 
-export function ErrorDisplay({ errors }: ErrorDisplayProps) {
+export function ErrorDisplay({ errors, currentFiles, onFixComplete }: ErrorDisplayProps) {
+    const [isFixing, setIsFixing] = useState(false);
+
     const getErrorIcon = (type: BuildError['type']) => {
         switch (type) {
             case 'typescript':
@@ -52,15 +60,94 @@ export function ErrorDisplay({ errors }: ErrorDisplayProps) {
         return acc;
     }, {} as Record<string, BuildError[]>);
 
+    const handleFixWithAI = async () => {
+        if (!currentFiles || errors.length === 0 || isFixing) return;
+
+        setIsFixing(true);
+
+        try {
+            // Format errors into an edit instruction
+            const errorDetails = errors.map(error => {
+                let errorInfo = `${error.type.toUpperCase()} ERROR: ${error.message}`;
+                if (error.file) {
+                    errorInfo += ` (in ${error.file}`;
+                    if (error.line) errorInfo += ` at line ${error.line}`;
+                    if (error.column) errorInfo += `, column ${error.column}`;
+                    errorInfo += ')';
+                }
+                return errorInfo;
+            }).join('\n\n');
+
+            const fixInstruction = `Fix the following build errors:
+
+${errorDetails}
+
+Please make the minimal changes necessary to resolve these errors while maintaining existing functionality.`;
+
+            // Use the existing edit API
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: 'component',
+                    description: '',
+                    existingFiles: currentFiles,
+                    editInstruction: fixInstruction,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fix errors with AI');
+            }
+
+            const fixResult = await response.json();
+
+            // Notify parent component of the fix result
+            if (onFixComplete) {
+                onFixComplete(fixResult);
+            }
+
+        } catch (error) {
+            console.error('Error fixing with AI:', error);
+            // Could add error toast here
+        } finally {
+            setIsFixing(false);
+        }
+    };
+
     return (
         <div className="w-full h-full flex items-center justify-center rounded-md border bg-background p-6">
             <div className="w-full max-w-2xl">
                 <div className="text-center mb-6">
                     <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">Build Errors Detected</h3>
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-muted-foreground text-sm mb-4">
                         Your project has some issues that need to be fixed before it can run properly.
                     </p>
+
+                    {/* Fix with AI Button */}
+                    {currentFiles && (
+                        <Button
+                            onClick={handleFixWithAI}
+                            disabled={isFixing}
+                            className="mb-4"
+                            size="sm"
+                        >
+                            {isFixing ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                                    Fixing with AI...
+                                </>
+                            ) : (
+                                <>
+                                    <Wand2 className="h-4 w-4 mr-2" />
+                                    Fix with AI
+                                </>
+                            )}
+                        </Button>
+                    )}
                 </div>
 
                 <ScrollArea className="max-h-96">
@@ -109,6 +196,7 @@ export function ErrorDisplay({ errors }: ErrorDisplayProps) {
                         <li>• Verify that all props are properly typed</li>
                         <li>• Make sure all dependencies are correctly installed</li>
                         <li>• Try regenerating the component with more specific requirements</li>
+                        {currentFiles && <li>• Use the "Fix with AI" button above for automatic error resolution</li>}
                     </ul>
                 </div>
             </div>

@@ -12,7 +12,7 @@ const benchify = new Benchify({
     apiKey: process.env.BENCHIFY_API_KEY,
 });
 
-const debug = false;
+const debug = true;
 const buggyCode = [
     {
         path: "src/App.tsx",
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
         // Determine if this is an edit request or new generation
         if (existingFiles && editInstruction) {
-            // Edit existing code
+            // Edit existing code (including error fixes)
             console.log('Processing edit request...');
             console.log('Existing files:', existingFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
 
