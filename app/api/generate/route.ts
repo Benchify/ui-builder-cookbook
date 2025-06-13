@@ -1,10 +1,12 @@
 // app/api/generate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { generateApp } from '@/lib/openai';
+import { generateApp, editApp } from '@/lib/openai';
 import { createSandbox } from '@/lib/e2b';
 import { componentSchema } from '@/lib/schemas';
 import { Benchify } from 'benchify';
 import { applyPatch } from 'diff';
+import { z } from 'zod';
+import { benchifyFileSchema } from '@/lib/schemas';
 
 const benchify = new Benchify({
     apiKey: process.env.BENCHIFY_API_KEY,
@@ -32,12 +34,30 @@ export default App;`
     }
 ];
 
+// Extended schema to support editing
+const extendedComponentSchema = componentSchema.extend({
+    existingFiles: benchifyFileSchema.optional(),
+    editInstruction: z.string().optional(),
+});
+
+// Helper function to merge updated files with existing files
+function mergeFiles(existingFiles: z.infer<typeof benchifyFileSchema>, updatedFiles: z.infer<typeof benchifyFileSchema>): z.infer<typeof benchifyFileSchema> {
+    const existingMap = new Map(existingFiles.map(file => [file.path, file]));
+
+    // Apply updates
+    updatedFiles.forEach(updatedFile => {
+        existingMap.set(updatedFile.path, updatedFile);
+    });
+
+    return Array.from(existingMap.values());
+}
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
 
-        // Validate the request using Zod schema
-        const validationResult = componentSchema.safeParse(body);
+        // Validate the request using extended schema
+        const validationResult = extendedComponentSchema.safeParse(body);
 
         if (!validationResult.success) {
             return NextResponse.json(
@@ -46,30 +66,53 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { description } = validationResult.data;
+        const { description, existingFiles, editInstruction } = validationResult.data;
 
-        // Generate the Vue app using OpenAI
-        let generatedFiles;
-        if (debug) {
-            generatedFiles = buggyCode;
+        console.log('API Request:', {
+            isEdit: !!(existingFiles && editInstruction),
+            filesCount: existingFiles?.length || 0,
+            editInstruction: editInstruction || 'none',
+            description: description || 'none'
+        });
+
+        let filesToSandbox;
+
+        // Determine if this is an edit request or new generation
+        if (existingFiles && editInstruction) {
+            // Edit existing code
+            console.log('Processing edit request...');
+            console.log('Existing files:', existingFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
+
+            const updatedFiles = await editApp(existingFiles, editInstruction);
+            console.log('Updated files from AI:', updatedFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
+
+            // Merge the updated files with the existing files
+            filesToSandbox = mergeFiles(existingFiles, updatedFiles);
+            console.log('Final merged files:', filesToSandbox.map(f => ({ path: f.path, contentLength: f.content.length })));
         } else {
-            generatedFiles = await generateApp(description);
+            // Generate new app
+            console.log('Processing new generation request...');
+            if (debug) {
+                filesToSandbox = buggyCode;
+            } else {
+                filesToSandbox = await generateApp(description);
+            }
         }
 
         // Repair the generated code using Benchify's API
         // const { data } = await benchify.fixer.run({
-        //     files: generatedFiles.map(file => ({
+        //     files: filesToSandbox.map(file => ({
         //         path: file.path,
         //         contents: file.content
         //     }))
         // });
 
-        let repairedFiles = generatedFiles;
+        let repairedFiles = filesToSandbox;
         // if (data) {
         //     const { success, diff } = data;
 
         //     if (success && diff) {
-        //         repairedFiles = generatedFiles.map(file => {
+        //         repairedFiles = filesToSandbox.map(file => {
         //             const patchResult = applyPatch(file.content, diff);
         //             return {
         //                 ...file,
@@ -83,12 +126,13 @@ export async function POST(request: NextRequest) {
 
         // Return the results to the client
         return NextResponse.json({
-            originalFiles: generatedFiles,
+            originalFiles: filesToSandbox,
             repairedFiles: sandboxResult.allFiles, // Use the allFiles from the sandbox
             buildOutput: `Sandbox created with template: ${sandboxResult.template}, ID: ${sandboxResult.sbxId}`,
             previewUrl: sandboxResult.url,
             buildErrors: sandboxResult.buildErrors,
             hasErrors: sandboxResult.hasErrors,
+            ...(editInstruction && { editInstruction }),
         });
     } catch (error) {
         console.error('Error generating app:', error);

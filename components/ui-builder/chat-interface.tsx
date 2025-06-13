@@ -18,15 +18,24 @@ interface Message {
 
 interface ChatInterfaceProps {
     initialPrompt: string;
+    currentFiles?: z.infer<typeof benchifyFileSchema>;
     onUpdateResult: (result: {
         repairedFiles?: z.infer<typeof benchifyFileSchema>;
         originalFiles?: z.infer<typeof benchifyFileSchema>;
         buildOutput: string;
         previewUrl: string;
+        buildErrors?: Array<{
+            type: 'typescript' | 'build' | 'runtime';
+            message: string;
+            file?: string;
+            line?: number;
+            column?: number;
+        }>;
+        hasErrors?: boolean;
     }) => void;
 }
 
-export function ChatInterface({ initialPrompt, onUpdateResult }: ChatInterfaceProps) {
+export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
@@ -64,30 +73,63 @@ export function ChatInterface({ initialPrompt, onUpdateResult }: ChatInterfacePr
         };
 
         setMessages(prev => [...prev, userMessage]);
+        const editInstruction = newMessage;
         setNewMessage('');
         setIsLoading(true);
 
         try {
-            // Here you would call your API to process the new request
-            // For now, we'll add a placeholder response
-            const assistantMessage: Message = {
+            // Add thinking message
+            const thinkingMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 type: 'assistant',
                 content: "I understand your request. Let me update the component for you...",
                 timestamp: new Date(),
             };
+            setMessages(prev => [...prev, thinkingMessage]);
 
-            setMessages(prev => [...prev, assistantMessage]);
+            // Call the edit API
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: 'component',
+                    description: '', // Not used for edits
+                    existingFiles: currentFiles,
+                    editInstruction: editInstruction,
+                }),
+            });
 
-            // TODO: Implement actual regeneration with the new prompt
-            // This would call your generate API with the conversation context
+            console.log('Edit request:', {
+                existingFiles: currentFiles,
+                editInstruction: editInstruction,
+                filesCount: currentFiles?.length || 0
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to edit component');
+            }
+
+            const editResult = await response.json();
+            console.log('Edit response:', editResult);
+
+            // Update the result in the parent component
+            onUpdateResult(editResult);
+
+            // Update the thinking message to success
+            setMessages(prev => prev.map(msg =>
+                msg.id === thinkingMessage.id
+                    ? { ...msg, content: `Great! I've updated the component according to your request: "${editInstruction}"` }
+                    : msg
+            ));
 
         } catch (error) {
-            console.error('Error processing message:', error);
+            console.error('Error processing edit:', error);
             const errorMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 type: 'assistant',
-                content: "I'm sorry, there was an error processing your request. Please try again.",
+                content: "I'm sorry, there was an error processing your edit request. Please try again.",
                 timestamp: new Date(),
             };
             setMessages(prev => [...prev, errorMessage]);
@@ -137,8 +179,8 @@ export function ChatInterface({ initialPrompt, onUpdateResult }: ChatInterfacePr
                             >
                                 <div
                                     className={`max-w-[80%] p-3 rounded-lg ${message.type === 'user'
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'bg-muted text-muted-foreground'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-muted text-muted-foreground'
                                         }`}
                                 >
                                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>

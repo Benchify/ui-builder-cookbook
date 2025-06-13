@@ -100,7 +100,12 @@ export default function ChatPage() {
             <div className="w-1/4 min-w-80 border-r border-border bg-card flex-shrink-0">
                 <ChatInterface
                     initialPrompt={initialPrompt}
-                    onUpdateResult={setResult}
+                    currentFiles={result?.repairedFiles || result?.originalFiles}
+                    onUpdateResult={(updatedResult) => {
+                        setResult(updatedResult);
+                        // Save updated result to sessionStorage
+                        sessionStorage.setItem('builderResult', JSON.stringify(updatedResult));
+                    }}
                 />
             </div>
 
