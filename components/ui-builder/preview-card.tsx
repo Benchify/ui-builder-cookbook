@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { benchifyFileSchema } from "@/lib/schemas";
 import { z } from "zod";
 import { CodeEditor } from "./code-editor";
+import { DownloadButton } from "./download-button";
 
 interface Step {
     id: string;
@@ -69,10 +70,17 @@ export function PreviewCard({ previewUrl, code, isGenerating = false, prompt }: 
     return (
         <div className="h-full">
             <Tabs defaultValue="preview" className="w-full h-full flex flex-col">
-                <TabsList className="mb-4 self-start">
-                    <TabsTrigger value="preview">Preview</TabsTrigger>
-                    <TabsTrigger value="code">Code</TabsTrigger>
-                </TabsList>
+                <div className="flex items-center justify-between mb-4">
+                    <TabsList>
+                        <TabsTrigger value="preview">Preview</TabsTrigger>
+                        <TabsTrigger value="code">Code</TabsTrigger>
+                    </TabsList>
+
+                    <DownloadButton
+                        files={files}
+                        disabled={isGenerating}
+                    />
+                </div>
 
                 <TabsContent value="preview" className="flex-1 m-0">
                     {isGenerating && prompt ? (
