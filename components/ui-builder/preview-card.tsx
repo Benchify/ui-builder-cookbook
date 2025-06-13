@@ -52,6 +52,7 @@ interface PreviewCardProps {
     prompt?: string;
     buildErrors?: BuildError[];
     hasErrors?: boolean;
+    onFixComplete?: (result: any) => void;
 }
 
 export function PreviewCard({
@@ -60,7 +61,8 @@ export function PreviewCard({
     isGenerating = false,
     prompt,
     buildErrors = [],
-    hasErrors = false
+    hasErrors = false,
+    onFixComplete
 }: PreviewCardProps) {
     const files = code || [];
     const [currentStep, setCurrentStep] = useState(0);
@@ -147,7 +149,11 @@ export function PreviewCard({
                         </div>
                     ) : hasErrors && buildErrors.length > 0 ? (
                         // Show build errors if there are any
-                        <ErrorDisplay errors={buildErrors} />
+                        <ErrorDisplay
+                            errors={buildErrors}
+                            currentFiles={files}
+                            onFixComplete={onFixComplete}
+                        />
                     ) : previewUrl ? (
                         // Show the actual preview iframe when ready
                         <div className="w-full h-full overflow-hidden rounded-md border bg-background">

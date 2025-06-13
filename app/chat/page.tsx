@@ -82,6 +82,12 @@ export default function ChatPage() {
         }
     };
 
+    const handleUpdateResult = (updatedResult: GenerationResult) => {
+        setResult(updatedResult);
+        // Save updated result to sessionStorage
+        sessionStorage.setItem('builderResult', JSON.stringify(updatedResult));
+    };
+
     // Show loading spinner if we don't have prompt yet
     if (!initialPrompt) {
         return (
@@ -101,11 +107,7 @@ export default function ChatPage() {
                 <ChatInterface
                     initialPrompt={initialPrompt}
                     currentFiles={result?.repairedFiles || result?.originalFiles}
-                    onUpdateResult={(updatedResult) => {
-                        setResult(updatedResult);
-                        // Save updated result to sessionStorage
-                        sessionStorage.setItem('builderResult', JSON.stringify(updatedResult));
-                    }}
+                    onUpdateResult={handleUpdateResult}
                 />
             </div>
 
@@ -118,6 +120,7 @@ export default function ChatPage() {
                     prompt={initialPrompt}
                     buildErrors={result?.buildErrors}
                     hasErrors={result?.hasErrors}
+                    onFixComplete={handleUpdateResult}
                 />
             </div>
         </div>

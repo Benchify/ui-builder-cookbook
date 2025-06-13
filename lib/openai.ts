@@ -17,8 +17,6 @@ const fileSchema = z.object({
     content: z.string()
 });
 
-
-
 // Generate a new application using AI SDK
 export async function generateApp(
     description: string,
