@@ -27,6 +27,30 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
 
     await sandbox.files.write(filesToWrite);
 
+    // Check if package.json was written and install only new dependencies
+    const packageJsonFile = transformedFiles.find(file => file.path === 'package.json');
+    if (packageJsonFile) {
+        console.log('package.json detected, checking for new dependencies...');
+        try {
+            const newPackages = extractNewPackages(packageJsonFile.content);
+
+            if (newPackages.length > 0) {
+                console.log('Installing new packages:', newPackages);
+                const installCmd = `cd /app && npm install ${newPackages.join(' ')} --no-save`;
+                const result = await sandbox.commands.run(installCmd);
+                console.log('New packages installed successfully:', result.stdout);
+                if (result.stderr) {
+                    console.warn('npm install warnings:', result.stderr);
+                }
+            } else {
+                console.log('No new packages to install');
+            }
+        } catch (error) {
+            console.error('Failed to install new packages:', error);
+            // Don't throw here, let the sandbox continue - users can still work with basic dependencies
+        }
+    }
+
     // Get all files from the sandbox using the improved filter logic
     const allFiles = await fetchAllSandboxFiles(sandbox);
 
@@ -38,5 +62,33 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
         url: previewUrl,
         allFiles: allFiles
     };
+}
+
+function extractNewPackages(packageJsonContent: string): string[] {
+    try {
+        const packageJson = JSON.parse(packageJsonContent);
+        const dependencies = packageJson.dependencies || {};
+
+        // Base packages that are already installed in the template
+        const basePackages = [
+            'react',
+            'react-dom',
+            '@vitejs/plugin-react',
+            'tailwindcss',
+            '@tailwindcss/vite',
+            'typescript',
+            'vite'
+        ];
+
+        // Find packages that aren't in our base template
+        const newPackages = Object.entries(dependencies)
+            .filter(([pkg]) => !basePackages.includes(pkg))
+            .map(([pkg, version]) => `${pkg}@${version}`);
+
+        return newPackages;
+    } catch (error) {
+        console.error('Error parsing package.json:', error);
+        return [];
+    }
 }
 

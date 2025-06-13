@@ -30,27 +30,27 @@ export async function POST(request: NextRequest) {
         const generatedFiles = await generateApp(description);
 
         // Repair the generated code using Benchify's API
-        const { data } = await benchify.fixer.run({
-            files: generatedFiles.map(file => ({
-                path: file.path,
-                contents: file.content
-            }))
-        });
+        // const { data } = await benchify.fixer.run({
+        //     files: generatedFiles.map(file => ({
+        //         path: file.path,
+        //         contents: file.content
+        //     }))
+        // });
 
         let repairedFiles = generatedFiles;
-        if (data) {
-            const { success, diff } = data;
+        // if (data) {
+        //     const { success, diff } = data;
 
-            if (success && diff) {
-                repairedFiles = generatedFiles.map(file => {
-                    const patchResult = applyPatch(file.content, diff);
-                    return {
-                        ...file,
-                        content: typeof patchResult === 'string' ? patchResult : file.content
-                    };
-                });
-            }
-        }
+        //     if (success && diff) {
+        //         repairedFiles = generatedFiles.map(file => {
+        //             const patchResult = applyPatch(file.content, diff);
+        //             return {
+        //                 ...file,
+        //                 content: typeof patchResult === 'string' ? patchResult : file.content
+        //             };
+        //         });
+        //     }
+        // }
 
         const { sbxId, template, url, allFiles } = await createSandbox({ files: repairedFiles });
 
