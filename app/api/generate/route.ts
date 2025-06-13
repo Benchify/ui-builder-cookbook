@@ -52,14 +52,16 @@ export async function POST(request: NextRequest) {
         //     }
         // }
 
-        const { sbxId, template, url, allFiles } = await createSandbox({ files: repairedFiles });
+        const sandboxResult = await createSandbox({ files: repairedFiles });
 
         // Return the results to the client
         return NextResponse.json({
             originalFiles: generatedFiles,
-            repairedFiles: allFiles, // Use the allFiles from the sandbox
-            buildOutput: `Sandbox created with template: ${template}, ID: ${sbxId}`,
-            previewUrl: url,
+            repairedFiles: sandboxResult.allFiles, // Use the allFiles from the sandbox
+            buildOutput: `Sandbox created with template: ${sandboxResult.template}, ID: ${sandboxResult.sbxId}`,
+            previewUrl: sandboxResult.url,
+            buildErrors: sandboxResult.buildErrors,
+            hasErrors: sandboxResult.hasErrors,
         });
     } catch (error) {
         console.error('Error generating app:', error);
