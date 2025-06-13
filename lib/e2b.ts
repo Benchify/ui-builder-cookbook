@@ -10,8 +10,24 @@ if (!E2B_API_KEY) {
     throw new Error('E2B_API_KEY is not set');
 }
 
+interface BuildError {
+    type: 'typescript' | 'build' | 'runtime';
+    message: string;
+    file?: string;
+    line?: number;
+    column?: number;
+}
 
-export async function createSandbox({ files }: { files: z.infer<typeof benchifyFileSchema> }) {
+interface SandboxResult {
+    sbxId: string;
+    template: string;
+    url: string;
+    allFiles: z.infer<typeof benchifyFileSchema>;
+    buildErrors?: BuildError[];
+    hasErrors: boolean;
+}
+
+export async function createSandbox({ files }: { files: z.infer<typeof benchifyFileSchema> }): Promise<SandboxResult> {
     // Create sandbox from the improved template
     const sandbox = await Sandbox.create('vite-support', { apiKey: E2B_API_KEY });
     console.log(`Sandbox created: ${sandbox.sandboxId}`);
@@ -27,6 +43,8 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
 
     await sandbox.files.write(filesToWrite);
 
+    const buildErrors: BuildError[] = [];
+
     // Check if package.json was written and install only new dependencies
     const packageJsonFile = transformedFiles.find(file => file.path === 'package.json');
     if (packageJsonFile) {
@@ -41,14 +59,60 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
                 console.log('New packages installed successfully:', result.stdout);
                 if (result.stderr) {
                     console.warn('npm install warnings:', result.stderr);
+                    // Parse npm install errors
+                    if (result.stderr.includes('npm ERR!')) {
+                        buildErrors.push({
+                            type: 'build',
+                            message: 'Package installation failed: ' + result.stderr.split('npm ERR!')[1]?.trim()
+                        });
+                    }
                 }
             } else {
                 console.log('No new packages to install');
             }
         } catch (error) {
             console.error('Failed to install new packages:', error);
-            // Don't throw here, let the sandbox continue - users can still work with basic dependencies
+            buildErrors.push({
+                type: 'build',
+                message: `Failed to install dependencies: ${error instanceof Error ? error.message : String(error)}`
+            });
         }
+    }
+
+    // Run TypeScript check to catch type errors
+    try {
+        console.log('Running TypeScript check...');
+        const tscResult = await sandbox.commands.run('cd /app && npx tsc --noEmit --skipLibCheck');
+
+        if (tscResult.exitCode !== 0 && tscResult.stderr) {
+            console.log('TypeScript errors found:', tscResult.stderr);
+            const tsErrors = parseTypeScriptErrors(tscResult.stderr);
+            buildErrors.push(...tsErrors);
+        }
+    } catch (error) {
+        console.error('TypeScript check failed:', error);
+        buildErrors.push({
+            type: 'typescript',
+            message: `TypeScript check failed: ${error instanceof Error ? error.message : String(error)}`
+        });
+    }
+
+    // Try to build the project to catch build-time errors
+    try {
+        console.log('Running build check...');
+        const buildResult = await sandbox.commands.run('cd /app && npm run build');
+
+        if (buildResult.exitCode !== 0) {
+            console.log('Build errors found:', buildResult.stderr);
+            const viteErrors = parseViteBuildErrors(buildResult.stderr);
+            buildErrors.push(...viteErrors);
+        }
+    } catch (error) {
+        console.error('Build check failed:', error);
+        buildErrors.push({
+            type: 'build',
+            message: `Build failed: ${error instanceof Error ? error.message : String(error)}`
+        });
     }
 
     // Get all files from the sandbox using the improved filter logic
@@ -60,8 +124,65 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
         sbxId: sandbox.sandboxId,
         template: 'vite-support',
         url: previewUrl,
-        allFiles: allFiles
+        allFiles: allFiles,
+        buildErrors: buildErrors.length > 0 ? buildErrors : undefined,
+        hasErrors: buildErrors.length > 0
     };
+}
+
+function parseTypeScriptErrors(stderr: string): BuildError[] {
+    const errors: BuildError[] = [];
+    const lines = stderr.split('\n');
+
+    for (const line of lines) {
+        // Match TypeScript error pattern: file(line,column): error TS####: message
+        const match = line.match(/(.+)\((\d+),(\d+)\): error TS\d+: (.+)/);
+        if (match) {
+            const [, file, line, column, message] = match;
+            errors.push({
+                type: 'typescript',
+                message: message.trim(),
+                file: file.replace('/app/', ''),
+                line: parseInt(line),
+                column: parseInt(column)
+            });
+        }
+    }
+
+    // If no specific errors found but stderr has content, add generic error
+    if (errors.length === 0 && stderr.trim()) {
+        errors.push({
+            type: 'typescript',
+            message: 'TypeScript compilation failed: ' + stderr.trim()
+        });
+    }
+
+    return errors;
+}
+
+function parseViteBuildErrors(stderr: string): BuildError[] {
+    const errors: BuildError[] = [];
+    const lines = stderr.split('\n');
+
+    for (const line of lines) {
+        // Match Vite build error patterns
+        if (line.includes('error') || line.includes('Error')) {
+            errors.push({
+                type: 'build',
+                message: line.trim()
+            });
+        }
+    }
+
+    // If no specific errors found but stderr has content, add generic error
+    if (errors.length === 0 && stderr.trim()) {
+        errors.push({
+            type: 'build',
+            message: 'Build failed: ' + stderr.trim()
+        });
+    }
+
+    return errors;
 }
 
 function extractNewPackages(packageJsonContent: string): string[] {

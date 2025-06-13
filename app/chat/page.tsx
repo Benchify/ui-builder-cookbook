@@ -12,6 +12,14 @@ type GenerationResult = {
     originalFiles?: z.infer<typeof benchifyFileSchema>;
     buildOutput: string;
     previewUrl: string;
+    buildErrors?: Array<{
+        type: 'typescript' | 'build' | 'runtime';
+        message: string;
+        file?: string;
+        line?: number;
+        column?: number;
+    }>;
+    hasErrors?: boolean;
 };
 
 export default function ChatPage() {
@@ -103,6 +111,8 @@ export default function ChatPage() {
                     code={result?.repairedFiles || result?.originalFiles || []}
                     isGenerating={isGenerating}
                     prompt={initialPrompt}
+                    buildErrors={result?.buildErrors}
+                    hasErrors={result?.hasErrors}
                 />
             </div>
         </div>

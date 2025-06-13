@@ -6,6 +6,7 @@ import { benchifyFileSchema } from "@/lib/schemas";
 import { z } from "zod";
 import { CodeEditor } from "./code-editor";
 import { DownloadButton } from "./download-button";
+import { ErrorDisplay } from "./error-display";
 
 interface Step {
     id: string;
@@ -36,14 +37,31 @@ const GENERATION_STEPS: Step[] = [
     },
 ];
 
+interface BuildError {
+    type: 'typescript' | 'build' | 'runtime';
+    message: string;
+    file?: string;
+    line?: number;
+    column?: number;
+}
+
 interface PreviewCardProps {
     previewUrl?: string;
     code: z.infer<typeof benchifyFileSchema>;
     isGenerating?: boolean;
     prompt?: string;
+    buildErrors?: BuildError[];
+    hasErrors?: boolean;
 }
 
-export function PreviewCard({ previewUrl, code, isGenerating = false, prompt }: PreviewCardProps) {
+export function PreviewCard({
+    previewUrl,
+    code,
+    isGenerating = false,
+    prompt,
+    buildErrors = [],
+    hasErrors = false
+}: PreviewCardProps) {
     const files = code || [];
     const [currentStep, setCurrentStep] = useState(0);
 
@@ -111,8 +129,8 @@ export function PreviewCard({ previewUrl, code, isGenerating = false, prompt }: 
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className={`text-sm font-medium ${isCompleted ? 'text-green-700 dark:text-green-400' :
-                                                        isCurrent ? 'text-primary' :
-                                                            'text-muted-foreground'
+                                                            isCurrent ? 'text-primary' :
+                                                                'text-muted-foreground'
                                                         }`}>
                                                         {step.label}
                                                     </p>
@@ -127,6 +145,9 @@ export function PreviewCard({ previewUrl, code, isGenerating = false, prompt }: 
                                 </CardContent>
                             </Card>
                         </div>
+                    ) : hasErrors && buildErrors.length > 0 ? (
+                        // Show build errors if there are any
+                        <ErrorDisplay errors={buildErrors} />
                     ) : previewUrl ? (
                         // Show the actual preview iframe when ready
                         <div className="w-full h-full overflow-hidden rounded-md border bg-background">
