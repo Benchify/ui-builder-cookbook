@@ -24,7 +24,7 @@ export function detectCodeErrors(output: string): ErrorDetectionResult {
     const hasSyntaxError = output.includes('SyntaxError');
     const hasUnexpectedToken = output.includes('Unexpected token');
     const hasParseError = output.includes('Parse error');
-    const hasUnterminatedString = output.includes('Unterminated string');
+    const hasUnterminatedString = output.includes('Unterminated string') || output.includes('Unterminated string constant');
     const hasModuleError = output.includes('Cannot resolve module') || output.includes('Module not found');
     const hasImportError = output.includes('Cannot resolve import');
 
@@ -122,6 +122,7 @@ function parseErrorsFromOutput(output: string): BuildError[] {
             line.includes('Unexpected token') ||
             line.includes('Parse error') ||
             line.includes('Unterminated string') ||
+            line.includes('Unterminated string constant') ||
             line.includes('Cannot resolve module') ||
             line.includes('Module not found') ||
             line.includes('Cannot resolve import');

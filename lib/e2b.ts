@@ -3,7 +3,6 @@ import { benchifyFileSchema } from './schemas';
 import { z } from 'zod';
 import { fetchAllSandboxFiles } from './file-filter';
 import { applyTransformations } from './sandbox-helpers';
-import { detectCodeErrors, parseTypeScriptErrors } from './error-detection';
 
 const E2B_API_KEY = process.env.E2B_API_KEY;
 
@@ -89,36 +88,225 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
         // Start dev server in background
         const devServerResult = await sandbox.commands.run('cd /app && npm run dev', { background: true });
 
-        console.log('Dev server command executed');
-        console.log('Dev server exit code:', devServerResult.exitCode);
-        console.log('Dev server stderr:', devServerResult.stderr || 'No stderr');
-        console.log('Dev server stdout:', devServerResult.stdout || 'No stdout');
+        console.log('=== DEV SERVER INITIAL RESULT ===');
+        console.log('Exit code:', devServerResult.exitCode);
+        console.log('Stderr length:', devServerResult.stderr?.length || 0);
+        console.log('Stdout length:', devServerResult.stdout?.length || 0);
+        console.log('Stderr content:', devServerResult.stderr || 'No stderr');
+        console.log('Stdout content:', devServerResult.stdout || 'No stdout');
 
         // Give it a moment to start and potentially fail
-        console.log('Waiting 3 seconds for dev server to start...');
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        console.log('Waiting 5 seconds for dev server to start...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
 
-        // Check the initial output for immediate errors
-        if (devServerResult.stderr || devServerResult.stdout) {
-            const allOutput = (devServerResult.stderr || '') + '\n' + (devServerResult.stdout || '');
+        // Check if the dev server is actually running by trying to access it
+        console.log('=== CHECKING IF DEV SERVER IS ACTUALLY RUNNING ===');
+        try {
+            const healthCheck = await sandbox.commands.run('curl -s -o /dev/null -w "%{http_code}" http://localhost:5173', { timeoutMs: 5000 });
+            console.log('Health check result:', healthCheck);
+            console.log('HTTP status code:', healthCheck.stdout);
 
-            // Use the error detection module
-            const errorResult = detectCodeErrors(allOutput);
-
-            if (errorResult.hasErrors) {
-                console.log('🔴 CODE ERRORS DETECTED!');
-                buildErrors.push(...errorResult.errors);
-            } else if (errorResult.isInfrastructureOnly) {
-                console.log('⚠️  Only infrastructure errors detected (ignoring)');
+            if (healthCheck.stdout === '200') {
+                console.log('✅ Dev server is running successfully despite permission errors!');
             } else {
-                console.log('✅ No errors detected');
+                console.log('❌ Dev server is not responding properly');
             }
-        } else {
-            console.log('⚠️  No stderr or stdout from dev server command');
+        } catch (healthError) {
+            console.log('Health check failed:', healthError);
+        }
+
+        // Check what processes are running
+        console.log('=== CHECKING RUNNING PROCESSES ===');
+        try {
+            const processCheck = await sandbox.commands.run('ps aux | grep -E "(vite|node)" | grep -v grep');
+            console.log('Running processes:', processCheck.stdout);
+        } catch (processError) {
+            console.log('Process check failed:', processError);
+        }
+
+        // Check if there are any recent logs
+        console.log('=== CHECKING FOR RECENT COMMAND OUTPUT ===');
+        try {
+            const recentLogs = await sandbox.commands.run('cd /app && timeout 2s npm run dev 2>&1 || true');
+            console.log('Recent dev server attempt:', recentLogs.stdout);
+            console.log('Recent dev server stderr:', recentLogs.stderr);
+        } catch (logError) {
+            console.log('Recent logs check failed:', logError);
+        }
+
+        // Simplified error detection: if there's stderr output or non-zero exit, it's likely an error
+        const hasStderr = devServerResult.stderr && devServerResult.stderr.trim().length > 0;
+        const hasErrorInStdout = devServerResult.stdout && (
+            devServerResult.stdout.includes('error') ||
+            devServerResult.stdout.includes('Error') ||
+            devServerResult.stdout.includes('failed') ||
+            devServerResult.stdout.includes('Failed')
+        );
+
+        // Check if the errors are just permission issues that don't prevent the server from working
+        const isPermissionError = devServerResult.stderr &&
+            devServerResult.stderr.includes('EACCES: permission denied') &&
+            devServerResult.stderr.includes('/app/node_modules/.vite-temp/');
+
+        // Check for actual compilation/build errors in the recent logs
+        let hasCompilationError = false;
+        let compilationErrorOutput = '';
+
+        console.log('=== COMPILATION ERROR CHECK ===');
+
+        // Try multiple approaches to detect compilation errors
+        try {
+            // Approach 1: Try to build the project
+            console.log('Trying npm run build...');
+            const buildCheck = await sandbox.commands.run('cd /app && timeout 10s npm run build 2>&1 || true');
+            console.log('Build check output:', buildCheck.stdout);
+            console.log('Build check stderr:', buildCheck.stderr);
+
+            if (buildCheck.stdout && (
+                buildCheck.stdout.includes('Unterminated string constant') ||
+                buildCheck.stdout.includes('SyntaxError') ||
+                buildCheck.stdout.includes('Unexpected token') ||
+                buildCheck.stdout.includes('Parse error') ||
+                buildCheck.stdout.includes('[plugin:vite:') ||
+                buildCheck.stdout.includes('Transform failed') ||
+                buildCheck.stdout.includes('Build failed')
+            )) {
+                hasCompilationError = true;
+                compilationErrorOutput = buildCheck.stdout;
+                console.log('✅ Found compilation error in build output');
+            }
+        } catch (buildError) {
+            console.log('Build check failed:', buildError);
+        }
+
+        // Approach 2: Try to check TypeScript compilation
+        if (!hasCompilationError) {
+            try {
+                console.log('Trying tsc --noEmit...');
+                const tscCheck = await sandbox.commands.run('cd /app && timeout 10s npx tsc --noEmit 2>&1 || true');
+                console.log('TypeScript check output:', tscCheck.stdout);
+                console.log('TypeScript check stderr:', tscCheck.stderr);
+
+                if (tscCheck.stdout && (
+                    tscCheck.stdout.includes('error TS') ||
+                    tscCheck.stdout.includes('Unterminated string constant') ||
+                    tscCheck.stdout.includes('SyntaxError')
+                )) {
+                    hasCompilationError = true;
+                    compilationErrorOutput = tscCheck.stdout;
+                    console.log('✅ Found compilation error in TypeScript check');
+                }
+            } catch (tscError) {
+                console.log('TypeScript check failed:', tscError);
+            }
+        }
+
+        // Approach 3: Try to parse files directly with Babel/ESLint
+        if (!hasCompilationError) {
+            try {
+                console.log('Trying to parse main files...');
+                const parseCheck = await sandbox.commands.run('cd /app && timeout 10s npx babel src/App.tsx --presets=@babel/preset-typescript 2>&1 || true');
+                console.log('Parse check output:', parseCheck.stdout);
+                console.log('Parse check stderr:', parseCheck.stderr);
+
+                if (parseCheck.stderr && (
+                    parseCheck.stderr.includes('Unterminated string constant') ||
+                    parseCheck.stderr.includes('SyntaxError') ||
+                    parseCheck.stderr.includes('Unexpected token')
+                )) {
+                    hasCompilationError = true;
+                    compilationErrorOutput = parseCheck.stderr;
+                    console.log('✅ Found compilation error in parse check');
+                }
+            } catch (parseError) {
+                console.log('Parse check failed:', parseError);
+            }
+        }
+
+        // Approach 4: Check if the dev server is actually serving errors
+        if (!hasCompilationError) {
+            try {
+                console.log('Checking dev server response for errors...');
+                const responseCheck = await sandbox.commands.run('cd /app && timeout 5s curl -s http://localhost:5173 2>&1 || true');
+                console.log('Response check output:', responseCheck.stdout);
+
+                if (responseCheck.stdout && (
+                    responseCheck.stdout.includes('SyntaxError') ||
+                    responseCheck.stdout.includes('Unterminated string') ||
+                    responseCheck.stdout.includes('Parse error') ||
+                    responseCheck.stdout.includes('Transform failed')
+                )) {
+                    hasCompilationError = true;
+                    compilationErrorOutput = responseCheck.stdout;
+                    console.log('✅ Found compilation error in dev server response');
+                }
+            } catch (responseError) {
+                console.log('Response check failed:', responseError);
+            }
+        }
+
+        // Approach 5: Check Vite logs more thoroughly
+        if (!hasCompilationError) {
+            try {
+                console.log('Checking for Vite process logs...');
+                const viteLogsCheck = await sandbox.commands.run('cd /app && ps aux | grep vite');
+                console.log('Vite processes:', viteLogsCheck.stdout);
+
+                // Try to get logs from the running Vite process
+                const viteLogCheck = await sandbox.commands.run('cd /app && timeout 3s strace -p $(pgrep -f "vite --host") 2>&1 | head -20 || true');
+                console.log('Vite process trace:', viteLogCheck.stdout);
+            } catch (viteError) {
+                console.log('Vite log check failed:', viteError);
+            }
+        }
+
+        console.log('=== COMPILATION ERROR CHECK SUMMARY ===');
+        console.log('Has compilation error:', hasCompilationError);
+        console.log('Compilation error output length:', compilationErrorOutput.length);
+        if (compilationErrorOutput) {
+            console.log('Compilation error preview:', compilationErrorOutput.substring(0, 500));
         }
 
         console.log('Dev server started, output checked');
         console.log('Total build errors found:', buildErrors.length);
+
+        console.log('=== ERROR ANALYSIS ===');
+        console.log('Has stderr:', hasStderr);
+        console.log('Has error in stdout:', hasErrorInStdout);
+        console.log('Is permission error:', isPermissionError);
+        console.log('Has compilation error:', hasCompilationError);
+
+        if (hasCompilationError || ((hasStderr || hasErrorInStdout) && !isPermissionError)) {
+            console.log('🔴 REAL ERRORS DETECTED IN DEV SERVER OUTPUT');
+
+            // Get the actual error output for display
+            let errorOutput = '';
+
+            if (hasCompilationError) {
+                // Use the compilation error output we found
+                errorOutput = compilationErrorOutput;
+                console.log('Using compilation error output for display');
+            } else {
+                // Use the original stderr/stdout
+                errorOutput = [devServerResult.stderr, devServerResult.stdout]
+                    .filter(Boolean)
+                    .join('\n')
+                    .trim();
+                console.log('Using dev server stderr/stdout for display');
+            }
+
+            if (errorOutput) {
+                console.log('Adding build error with message length:', errorOutput.length);
+                buildErrors.push({
+                    type: 'build',
+                    message: errorOutput
+                });
+            }
+        } else if (isPermissionError) {
+            console.log('⚠️  Permission errors detected but likely non-critical (E2B sandbox issue)');
+        } else {
+            console.log('✅ No errors detected in dev server output');
+        }
     } catch (error) {
         console.error('Dev server check failed:', error);
         buildErrors.push({
@@ -141,8 +329,6 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
         hasErrors: buildErrors.length > 0
     };
 }
-
-
 
 function extractNewPackages(packageJsonContent: string): string[] {
     try {
