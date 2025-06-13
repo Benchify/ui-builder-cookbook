@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { benchifyFileSchema } from "@/lib/schemas";
 import { z } from "zod";
@@ -13,30 +12,30 @@ export function PreviewCard({ previewUrl, code }: PreviewCardProps) {
     const files = code || [];
 
     return (
-        <Card className="border-border bg-card">
-            <CardContent>
-                <Tabs defaultValue="preview" className="w-full">
-                    <TabsList className="mb-4">
-                        <TabsTrigger value="preview">Preview</TabsTrigger>
-                        <TabsTrigger value="code">Code</TabsTrigger>
-                    </TabsList>
+        <div className="h-full">
+            <Tabs defaultValue="preview" className="w-full h-full flex flex-col">
+                <TabsList className="mb-4 self-start">
+                    <TabsTrigger value="preview">Preview</TabsTrigger>
+                    <TabsTrigger value="code">Code</TabsTrigger>
+                </TabsList>
 
-                    <TabsContent value="preview" className="w-full">
-                        <div className="w-full overflow-hidden rounded-md border">
-                            <iframe
-                                title="Preview"
-                                src={previewUrl}
-                                className="w-full h-[700px]"
-                                sandbox="allow-scripts allow-same-origin"
-                            />
-                        </div>
-                    </TabsContent>
+                <TabsContent value="preview" className="flex-1 m-0">
+                    <div className="w-full h-full overflow-hidden rounded-md border bg-background">
+                        <iframe
+                            title="Preview"
+                            src={previewUrl}
+                            className="w-full h-full"
+                            sandbox="allow-scripts allow-same-origin"
+                        />
+                    </div>
+                </TabsContent>
 
-                    <TabsContent value="code" className="w-full h-[700px]">
+                <TabsContent value="code" className="flex-1 m-0">
+                    <div className="h-full">
                         <CodeEditor files={files} />
-                    </TabsContent>
-                </Tabs>
-            </CardContent>
-        </Card>
+                    </div>
+                </TabsContent>
+            </Tabs>
+        </div>
     );
 }

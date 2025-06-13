@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -23,12 +24,9 @@ const formSchema = z.object({
     }),
 })
 
-export function PromptForm({
-    onGenerate
-}: {
-    onGenerate: (result: any) => void
-}) {
+export function PromptForm() {
     const [loading, setLoading] = useState(false);
+    const router = useRouter();
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -57,7 +55,13 @@ export function PromptForm({
             }
 
             const result = await response.json();
-            onGenerate(result);
+
+            // Store the result in sessionStorage for the builder page
+            sessionStorage.setItem('builderResult', JSON.stringify(result));
+            sessionStorage.setItem('initialPrompt', values.description);
+
+            // Navigate to the builder page
+            router.push('/builder');
         } catch (error) {
             console.error('Error generating component:', error);
         } finally {
