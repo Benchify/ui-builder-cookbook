@@ -162,9 +162,13 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
 
             if (buildCheck.stdout && (
                 buildCheck.stdout.includes('Unterminated string constant') ||
+                buildCheck.stdout.includes('Unterminated string literal') ||
                 buildCheck.stdout.includes('SyntaxError') ||
                 buildCheck.stdout.includes('Unexpected token') ||
-                buildCheck.stdout.includes('[plugin:vite:')
+                buildCheck.stdout.includes('error TS') ||
+                buildCheck.stdout.includes('[plugin:vite:') ||
+                buildCheck.stdout.includes('Parse error') ||
+                buildCheck.stdout.includes('Parsing error')
             )) {
                 hasCompilationError = true;
                 compilationErrorOutput = buildCheck.stdout;
@@ -208,10 +212,18 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
 
             if (errorOutput) {
                 console.log('Adding build error with message length:', errorOutput.length);
-                buildErrors.push({
-                    type: 'build',
-                    message: errorOutput
-                });
+
+                // Parse TypeScript errors for better display
+                const parsedErrors = parseTypeScriptErrors(errorOutput);
+                if (parsedErrors.length > 0) {
+                    buildErrors.push(...parsedErrors);
+                } else {
+                    // Fallback to raw error output
+                    buildErrors.push({
+                        type: 'build',
+                        message: errorOutput
+                    });
+                }
             }
         } else if (isPermissionError) {
             console.log('⚠️  Permission errors detected but likely non-critical (E2B sandbox issue)');
@@ -239,6 +251,40 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
         buildErrors: buildErrors.length > 0 ? buildErrors : undefined,
         hasErrors: buildErrors.length > 0
     };
+}
+
+function parseTypeScriptErrors(output: string): BuildError[] {
+    const errors: BuildError[] = [];
+
+    // Match TypeScript error format: file(line,col): error TSxxxx: message
+    const tsErrorRegex = /([^(]+)\((\d+),(\d+)\): error (TS\d+): (.+)/g;
+
+    let match;
+    while ((match = tsErrorRegex.exec(output)) !== null) {
+        const [, file, line, col, errorCode, message] = match;
+        errors.push({
+            type: 'typescript',
+            message: `${errorCode}: ${message}`,
+            file: file.trim(),
+            line: parseInt(line, 10),
+            column: parseInt(col, 10)
+        });
+    }
+
+    // If no specific TypeScript errors found, try to extract any line that looks like an error
+    if (errors.length === 0) {
+        const lines = output.split('\n');
+        for (const line of lines) {
+            if (line.includes('error') || line.includes('Error')) {
+                errors.push({
+                    type: 'build',
+                    message: line.trim()
+                });
+            }
+        }
+    }
+
+    return errors;
 }
 
 function extractNewPackages(packageJsonContent: string): string[] {
