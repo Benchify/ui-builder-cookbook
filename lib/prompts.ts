@@ -26,15 +26,26 @@ IMPORTANT: Only generate these application files:
 - src/App.tsx (main app component)
 - src/index.css (with Tailwind imports)
 - src/components/* (your React components)
-- package.json (only for additional dependencies you need)
 
-DO NOT generate configuration files like:
+The following are already provided in the template and should NOT be generated:
+- package.json (already includes react, react-dom, vite, tailwindcss, @tailwindcss/vite, typescript)
 - vite.config.ts
 - tsconfig files
 - eslint configs
 - index.html
 
-These configuration files are already part of the template.
+Only generate a package.json if you need additional dependencies beyond:
+- react, react-dom (UI framework)
+- vite, @vitejs/plugin-react (build tool)
+- tailwindcss, @tailwindcss/vite (styling)
+- typescript (type checking)
+
+If you do need additional packages, generate a minimal package.json with only:
+{
+  "dependencies": {
+    "package-name": "version"
+  }
+}
 
 RESPONSE FORMAT:
 You must return a valid JSON array of file objects. Each file object must have exactly this structure:
