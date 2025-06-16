@@ -1,6 +1,6 @@
 // app/api/generate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { generateApp, editApp } from '@/lib/openai';
+import { processAppRequest } from '@/lib/openai';
 import { createSandbox } from '@/lib/e2b';
 import { componentSchema } from '@/lib/schemas';
 import { Benchify } from 'benchify';
@@ -12,27 +12,6 @@ const benchify = new Benchify({
     apiKey: process.env.BENCHIFY_API_KEY,
 });
 
-const buggyCode = [
-    {
-        path: "src/App.tsx",
-        content: `import React from 'react';
-
-const App = () => {
-    const message = "Hello World;  // Missing closing quote
-    const title = 'Welcome to my app';
-    
-    return (
-        <div>
-            <h1>{title}</h1>
-            <p>{message}</p>
-        </div>
-    );
-};
-
-export default App;`
-    }
-];
-
 // Extended schema to support editing
 const extendedComponentSchema = componentSchema.extend({
     existingFiles: benchifyFileSchema.optional(),
@@ -40,18 +19,6 @@ const extendedComponentSchema = componentSchema.extend({
     useBuggyCode: z.boolean().optional().default(false),
     useFixer: z.boolean().optional().default(false),
 });
-
-// Helper function to merge updated files with existing files
-function mergeFiles(existingFiles: z.infer<typeof benchifyFileSchema>, updatedFiles: z.infer<typeof benchifyFileSchema>): z.infer<typeof benchifyFileSchema> {
-    const existingMap = new Map(existingFiles.map(file => [file.path, file]));
-
-    // Apply updates
-    updatedFiles.forEach(updatedFile => {
-        existingMap.set(updatedFile.path, updatedFile);
-    });
-
-    return Array.from(existingMap.values());
-}
 
 export async function POST(request: NextRequest) {
     try {
@@ -80,31 +47,8 @@ export async function POST(request: NextRequest) {
             useFixer
         });
 
-        let filesToSandbox;
-
-        // Determine if this is an edit request or new generation
-        if (existingFiles && editInstruction) {
-            // Edit existing code (including error fixes)
-            console.log('📝 Processing edit request...');
-            console.log('Existing files:', existingFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
-
-            const updatedFiles = await editApp(existingFiles, editInstruction);
-            console.log('Updated files from AI:', updatedFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
-
-            // Merge the updated files with the existing files
-            filesToSandbox = mergeFiles(existingFiles, updatedFiles);
-            console.log('Final merged files:', filesToSandbox.map(f => ({ path: f.path, contentLength: f.content.length })));
-        } else {
-            // Generate new app
-            console.log('🆕 Processing new generation request...');
-            if (useBuggyCode) {
-                console.log('🐛 Using buggy code as requested');
-                filesToSandbox = buggyCode;
-            } else {
-                console.log('🤖 Calling AI to generate app...');
-                filesToSandbox = await generateApp(description);
-            }
-        }
+        // Process the app request using centralized logic
+        const filesToSandbox = await processAppRequest(description, existingFiles, editInstruction, useBuggyCode);
 
         console.log('📦 Files ready for sandbox:', filesToSandbox.length);
 
@@ -115,7 +59,7 @@ export async function POST(request: NextRequest) {
             console.log('🔧 Running Benchify fixer...');
             try {
                 const { data } = await benchify.fixer.run({
-                    files: filesToSandbox.map(file => ({
+                    files: filesToSandbox.map((file: { path: string; content: string }) => ({
                         path: file.path,
                         contents: file.content
                     }))
@@ -126,7 +70,7 @@ export async function POST(request: NextRequest) {
 
                     if (success && diff) {
                         console.log('✅ Fixer applied successfully');
-                        repairedFiles = filesToSandbox.map(file => {
+                        repairedFiles = filesToSandbox.map((file: { path: string; content: string }) => {
                             const patchResult = applyPatch(file.content, diff);
                             return {
                                 ...file,
