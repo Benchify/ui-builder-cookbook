@@ -18,7 +18,7 @@ const fileSchema = z.object({
 });
 
 // Generate a new application using AI SDK
-export async function generateApp(
+export async function createNewApp(
     description: string,
 ): Promise<Array<{ path: string; content: string }>> {
     console.log("Creating app with description: ", description);
@@ -108,7 +108,7 @@ export async function editApp(
 }
 
 // Main function to handle both generation and editing
-export async function processAppRequest(
+export async function generateAppCode(
     description: string,
     existingFiles?: z.infer<typeof benchifyFileSchema>,
     editInstruction?: string,
@@ -147,7 +147,7 @@ export default App;`
             ];
         } else {
             console.log('🤖 Calling AI to generate app...');
-            return await generateApp(description);
+            return await createNewApp(description);
         }
     }
 }
