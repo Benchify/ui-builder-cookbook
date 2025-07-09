@@ -1,6 +1,6 @@
 // app/api/generate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { processAppRequest } from '@/lib/openai';
+import { generateAppCode } from '@/lib/openai';
 import { createSandbox } from '@/lib/e2b';
 import { componentSchema } from '@/lib/schemas';
 import { Benchify } from 'benchify';
@@ -22,34 +22,39 @@ const extendedComponentSchema = componentSchema.extend({
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
 
-        // Validate the request using extended schema
-        const validationResult = extendedComponentSchema.safeParse(body);
+        // Validate the request
+        const validation = await validateRequest(request);
 
-        if (!validationResult.success) {
-            return NextResponse.json(
-                { error: 'Invalid request format', details: validationResult.error.format() },
-                { status: 400 }
-            );
+        if (!validation.success) {
+            return validation.error;
         }
 
-        const { description, existingFiles, editInstruction, useBuggyCode, useFixer } = validationResult.data;
+        const { description, existingFiles, editInstruction, useBuggyCode, useFixer } = validation.data;
 
         // Process the app request using centralized logic
-        const filesToSandbox = await processAppRequest(description, existingFiles, editInstruction, useBuggyCode);
+        const filesToSandbox = await generateAppCode(description, existingFiles, editInstruction, useBuggyCode);
 
         let repairedFiles = filesToSandbox;
 
         // Repair the generated code using Benchify's API if requested
         if (useFixer) {
             try {
+                console.log("Trying fixer")
                 const { data } = await benchify.fixer.run({
                     files: filesToSandbox.map((file: { path: string; content: string }) => ({
                         path: file.path,
                         contents: file.content
-                    }))
+                    })),
+                    fixes: {
+                        css: false,
+                        imports: false,
+                        stringLiterals: true,
+                        tsSuggestions: false
+                    }
                 });
+
+                console.log('🔧 Benchify fixer data:', data);
 
                 if (data) {
                     const { success, diff } = data;
@@ -90,4 +95,25 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+
+async function validateRequest(request: NextRequest) {
+    const body = await request.json();
+    const validationResult = extendedComponentSchema.safeParse(body);
+
+    if (!validationResult.success) {
+        return {
+            success: false as const,
+            error: NextResponse.json(
+                { error: 'Invalid request format', details: validationResult.error.format() },
+                { status: 400 }
+            )
+        };
+    }
+
+    return {
+        success: true as const,
+        data: validationResult.data
+    };
 }
