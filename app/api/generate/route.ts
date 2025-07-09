@@ -12,7 +12,7 @@ const benchify = new Benchify({
     apiKey: process.env.BENCHIFY_API_KEY,
 });
 
-const debug = true;
+const debug = false;
 const buggyCode = [
     {
         path: "src/App.tsx",
@@ -54,12 +54,14 @@ function mergeFiles(existingFiles: z.infer<typeof benchifyFileSchema>, updatedFi
 
 export async function POST(request: NextRequest) {
     try {
+        console.log('🚀 API route started');
         const body = await request.json();
 
         // Validate the request using extended schema
         const validationResult = extendedComponentSchema.safeParse(body);
 
         if (!validationResult.success) {
+            console.log('❌ Validation failed:', validationResult.error.format());
             return NextResponse.json(
                 { error: 'Invalid request format', details: validationResult.error.format() },
                 { status: 400 }
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
 
         const { description, existingFiles, editInstruction } = validationResult.data;
 
-        console.log('API Request:', {
+        console.log('✅ Validation passed, API Request:', {
             isEdit: !!(existingFiles && editInstruction),
             filesCount: existingFiles?.length || 0,
             editInstruction: editInstruction || 'none',
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
         // Determine if this is an edit request or new generation
         if (existingFiles && editInstruction) {
             // Edit existing code (including error fixes)
-            console.log('Processing edit request...');
+            console.log('📝 Processing edit request...');
             console.log('Existing files:', existingFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
 
             const updatedFiles = await editApp(existingFiles, editInstruction);
@@ -91,38 +93,44 @@ export async function POST(request: NextRequest) {
             console.log('Final merged files:', filesToSandbox.map(f => ({ path: f.path, contentLength: f.content.length })));
         } else {
             // Generate new app
-            console.log('Processing new generation request...');
+            console.log('🆕 Processing new generation request...');
             if (debug) {
+                console.log('🐛 Debug mode: using buggy code');
                 filesToSandbox = buggyCode;
             } else {
+                console.log('🤖 Calling AI to generate app...');
                 filesToSandbox = await generateApp(description);
             }
         }
 
+        console.log('📦 Files ready for sandbox:', filesToSandbox.length);
+
         // Repair the generated code using Benchify's API
-        const { data } = await benchify.fixer.run({
-            files: filesToSandbox.map(file => ({
-                path: file.path,
-                contents: file.content
-            }))
-        });
+        // const { data } = await benchify.fixer.run({
+        //     files: filesToSandbox.map(file => ({
+        //         path: file.path,
+        //         contents: file.content
+        //     }))
+        // });
 
         let repairedFiles = filesToSandbox;
-        if (data) {
-            const { success, diff } = data;
+        // if (data) {
+        //     const { success, diff } = data;
 
-            if (success && diff) {
-                repairedFiles = filesToSandbox.map(file => {
-                    const patchResult = applyPatch(file.content, diff);
-                    return {
-                        ...file,
-                        content: typeof patchResult === 'string' ? patchResult : file.content
-                    };
-                });
-            }
-        }
+        //     if (success && diff) {
+        //         repairedFiles = filesToSandbox.map(file => {
+        //             const patchResult = applyPatch(file.content, diff);
+        //             return {
+        //                 ...file,
+        //                 content: typeof patchResult === 'string' ? patchResult : file.content
+        //             };
+        //         });
+        //     }
+        // }
 
+        console.log('🏗️  Creating sandbox...');
         const sandboxResult = await createSandbox({ files: repairedFiles });
+        console.log('✅ Sandbox created successfully');
 
         // Return the results to the client
         return NextResponse.json({
@@ -135,7 +143,7 @@ export async function POST(request: NextRequest) {
             ...(editInstruction && { editInstruction }),
         });
     } catch (error) {
-        console.error('Error generating app:', error);
+        console.error('💥 Error in API route:', error);
         return NextResponse.json(
             {
                 error: 'Failed to generate app',

@@ -154,22 +154,17 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
 
         console.log('=== COMPILATION ERROR CHECK ===');
 
-        // Try multiple approaches to detect compilation errors
+        // Simplified approach - just try one quick check
         try {
-            // Approach 1: Try to build the project
-            console.log('Trying npm run build...');
-            const buildCheck = await sandbox.commands.run('cd /app && timeout 10s npm run build 2>&1 || true');
-            console.log('Build check output:', buildCheck.stdout);
-            console.log('Build check stderr:', buildCheck.stderr);
+            console.log('Trying quick build check...');
+            const buildCheck = await sandbox.commands.run('cd /app && timeout 5s npm run build 2>&1 || true');
+            console.log('Build check output:', buildCheck.stdout?.substring(0, 500));
 
             if (buildCheck.stdout && (
                 buildCheck.stdout.includes('Unterminated string constant') ||
                 buildCheck.stdout.includes('SyntaxError') ||
                 buildCheck.stdout.includes('Unexpected token') ||
-                buildCheck.stdout.includes('Parse error') ||
-                buildCheck.stdout.includes('[plugin:vite:') ||
-                buildCheck.stdout.includes('Transform failed') ||
-                buildCheck.stdout.includes('Build failed')
+                buildCheck.stdout.includes('[plugin:vite:')
             )) {
                 hasCompilationError = true;
                 compilationErrorOutput = buildCheck.stdout;
@@ -179,93 +174,9 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
             console.log('Build check failed:', buildError);
         }
 
-        // Approach 2: Try to check TypeScript compilation
-        if (!hasCompilationError) {
-            try {
-                console.log('Trying tsc --noEmit...');
-                const tscCheck = await sandbox.commands.run('cd /app && timeout 10s npx tsc --noEmit 2>&1 || true');
-                console.log('TypeScript check output:', tscCheck.stdout);
-                console.log('TypeScript check stderr:', tscCheck.stderr);
-
-                if (tscCheck.stdout && (
-                    tscCheck.stdout.includes('error TS') ||
-                    tscCheck.stdout.includes('Unterminated string constant') ||
-                    tscCheck.stdout.includes('SyntaxError')
-                )) {
-                    hasCompilationError = true;
-                    compilationErrorOutput = tscCheck.stdout;
-                    console.log('✅ Found compilation error in TypeScript check');
-                }
-            } catch (tscError) {
-                console.log('TypeScript check failed:', tscError);
-            }
-        }
-
-        // Approach 3: Try to parse files directly with Babel/ESLint
-        if (!hasCompilationError) {
-            try {
-                console.log('Trying to parse main files...');
-                const parseCheck = await sandbox.commands.run('cd /app && timeout 10s npx babel src/App.tsx --presets=@babel/preset-typescript 2>&1 || true');
-                console.log('Parse check output:', parseCheck.stdout);
-                console.log('Parse check stderr:', parseCheck.stderr);
-
-                if (parseCheck.stderr && (
-                    parseCheck.stderr.includes('Unterminated string constant') ||
-                    parseCheck.stderr.includes('SyntaxError') ||
-                    parseCheck.stderr.includes('Unexpected token')
-                )) {
-                    hasCompilationError = true;
-                    compilationErrorOutput = parseCheck.stderr;
-                    console.log('✅ Found compilation error in parse check');
-                }
-            } catch (parseError) {
-                console.log('Parse check failed:', parseError);
-            }
-        }
-
-        // Approach 4: Check if the dev server is actually serving errors
-        if (!hasCompilationError) {
-            try {
-                console.log('Checking dev server response for errors...');
-                const responseCheck = await sandbox.commands.run('cd /app && timeout 5s curl -s http://localhost:5173 2>&1 || true');
-                console.log('Response check output:', responseCheck.stdout);
-
-                if (responseCheck.stdout && (
-                    responseCheck.stdout.includes('SyntaxError') ||
-                    responseCheck.stdout.includes('Unterminated string') ||
-                    responseCheck.stdout.includes('Parse error') ||
-                    responseCheck.stdout.includes('Transform failed')
-                )) {
-                    hasCompilationError = true;
-                    compilationErrorOutput = responseCheck.stdout;
-                    console.log('✅ Found compilation error in dev server response');
-                }
-            } catch (responseError) {
-                console.log('Response check failed:', responseError);
-            }
-        }
-
-        // Approach 5: Check Vite logs more thoroughly
-        if (!hasCompilationError) {
-            try {
-                console.log('Checking for Vite process logs...');
-                const viteLogsCheck = await sandbox.commands.run('cd /app && ps aux | grep vite');
-                console.log('Vite processes:', viteLogsCheck.stdout);
-
-                // Try to get logs from the running Vite process
-                const viteLogCheck = await sandbox.commands.run('cd /app && timeout 3s strace -p $(pgrep -f "vite --host") 2>&1 | head -20 || true');
-                console.log('Vite process trace:', viteLogCheck.stdout);
-            } catch (viteError) {
-                console.log('Vite log check failed:', viteError);
-            }
-        }
-
         console.log('=== COMPILATION ERROR CHECK SUMMARY ===');
         console.log('Has compilation error:', hasCompilationError);
         console.log('Compilation error output length:', compilationErrorOutput.length);
-        if (compilationErrorOutput) {
-            console.log('Compilation error preview:', compilationErrorOutput.substring(0, 500));
-        }
 
         console.log('Dev server started, output checked');
         console.log('Total build errors found:', buildErrors.length);
