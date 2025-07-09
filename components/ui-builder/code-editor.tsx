@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { benchifyFileSchema } from "@/lib/schemas";
 import { z } from "zod";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -35,7 +35,7 @@ export function CodeEditor({ files = [] }: CodeEditorProps) {
     const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
 
     // Build file tree structure (pure function, no side effects)
-    const buildFileTree = (files: Array<{ path: string; content: string }>): { tree: FileNode[], allFolders: string[] } => {
+    const buildFileTree = useCallback((files: Array<{ path: string; content: string }>): { tree: FileNode[], allFolders: string[] } => {
         const root: FileNode[] = [];
         const folderMap = new Map<string, FileNode>();
         const allFolders: string[] = [];
@@ -81,7 +81,7 @@ export function CodeEditor({ files = [] }: CodeEditorProps) {
         });
 
         return { tree: root, allFolders };
-    };
+    }, []);
 
     const { tree: fileTree, allFolders } = buildFileTree(files);
     const selectedFile = files.find(f => f.path === selectedFilePath);
@@ -91,14 +91,14 @@ export function CodeEditor({ files = [] }: CodeEditorProps) {
         if (allFolders.length > 0) {
             setOpenFolders(new Set(allFolders));
         }
-    }, [files.length]); // Only trigger when files array changes
+    }, [allFolders]);
 
     // Auto-select first file if none selected (only once when files change)
     useEffect(() => {
         if (!selectedFilePath && files.length > 0) {
             setSelectedFilePath(files[0].path);
         }
-    }, [files.length, selectedFilePath]); // Dependency on selectedFilePath prevents loops
+    }, [files, selectedFilePath]);
 
     // Get file icon based on extension
     const getFileIcon = (path: string) => {

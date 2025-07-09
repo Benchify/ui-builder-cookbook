@@ -45,6 +45,16 @@ interface BuildError {
     column?: number;
 }
 
+interface FixResult {
+    originalFiles: z.infer<typeof benchifyFileSchema>;
+    repairedFiles: z.infer<typeof benchifyFileSchema>;
+    buildOutput: string;
+    previewUrl: string;
+    buildErrors?: BuildError[];
+    hasErrors: boolean;
+    editInstruction?: string;
+}
+
 interface PreviewCardProps {
     previewUrl?: string;
     code: z.infer<typeof benchifyFileSchema>;
@@ -52,7 +62,7 @@ interface PreviewCardProps {
     prompt?: string;
     buildErrors?: BuildError[];
     hasErrors?: boolean;
-    onFixComplete?: (result: any) => void;
+    onFixComplete?: (result: FixResult) => void;
 }
 
 export function PreviewCard({
@@ -110,7 +120,7 @@ export function PreviewCard({
                                 <CardHeader>
                                     <CardTitle>Building Your UI</CardTitle>
                                     <p className="text-sm text-muted-foreground mt-2">
-                                        "{prompt.substring(0, 100)}{prompt.length > 100 ? '...' : ''}"
+                                        &quot;{prompt.substring(0, 100)}{prompt.length > 100 ? '...' : ''}&quot;
                                     </p>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
