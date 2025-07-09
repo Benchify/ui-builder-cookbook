@@ -53,12 +53,25 @@ export async function generateApp(
     }
 }
 
-// Edit existing application using AI SDK
+// Helper function to merge updated files with existing files
+function mergeFiles(existingFiles: z.infer<typeof benchifyFileSchema>, updatedFiles: z.infer<typeof benchifyFileSchema>): z.infer<typeof benchifyFileSchema> {
+    const existingMap = new Map(existingFiles.map(file => [file.path, file]));
+
+    // Apply updates
+    updatedFiles.forEach(updatedFile => {
+        existingMap.set(updatedFile.path, updatedFile);
+    });
+
+    return Array.from(existingMap.values());
+}
+
+// Edit existing application using AI SDK and merge results
 export async function editApp(
     existingFiles: z.infer<typeof benchifyFileSchema>,
     editInstruction: string,
-): Promise<Array<{ path: string; content: string }>> {
+): Promise<z.infer<typeof benchifyFileSchema>> {
     console.log("Editing app with instruction: ", editInstruction);
+    console.log('Existing files:', existingFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
 
     try {
         const { elementStream } = streamObject({
@@ -81,11 +94,60 @@ export async function editApp(
             throw new Error("Failed to generate updated files - received empty response");
         }
 
-        console.log("Generated updated files: ", updatedFiles);
+        console.log("Generated updated files: ", updatedFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
 
-        return updatedFiles;
+        // Merge the updated files with the existing files
+        const mergedFiles = mergeFiles(existingFiles, updatedFiles);
+        console.log('Final merged files:', mergedFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
+
+        return mergedFiles;
     } catch (error) {
         console.error('Error editing app:', error);
         throw error;
+    }
+}
+
+// Main function to handle both generation and editing
+export async function processAppRequest(
+    description: string,
+    existingFiles?: z.infer<typeof benchifyFileSchema>,
+    editInstruction?: string,
+    useBuggyCode: boolean = false
+): Promise<z.infer<typeof benchifyFileSchema>> {
+    // Determine if this is an edit request or new generation
+    if (existingFiles && editInstruction) {
+        // Edit existing code (including error fixes)
+        console.log('📝 Processing edit request...');
+        return await editApp(existingFiles, editInstruction);
+    } else {
+        // Generate new app
+        console.log('🆕 Processing new generation request...');
+        if (useBuggyCode) {
+            console.log('🐛 Using buggy code as requested');
+            // Return the buggy code in the expected format
+            return [
+                {
+                    path: "src/App.tsx",
+                    content: `import React from 'react';
+
+const App = () => {
+    const message = "Hello World;  // Missing closing quote
+    const title = 'Welcome to my app';
+    
+    return (
+        <div>
+            <h1>{title}</h1>
+            <p>{message}</p>
+        </div>
+    );
+};
+
+export default App;`
+                }
+            ];
+        } else {
+            console.log('🤖 Calling AI to generate app...');
+            return await generateApp(description);
+        }
     }
 }
