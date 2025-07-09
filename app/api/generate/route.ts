@@ -12,7 +12,6 @@ const benchify = new Benchify({
     apiKey: process.env.BENCHIFY_API_KEY,
 });
 
-const debug = false;
 const buggyCode = [
     {
         path: "src/App.tsx",
@@ -38,6 +37,8 @@ export default App;`
 const extendedComponentSchema = componentSchema.extend({
     existingFiles: benchifyFileSchema.optional(),
     editInstruction: z.string().optional(),
+    useBuggyCode: z.boolean().optional().default(false),
+    useFixer: z.boolean().optional().default(false),
 });
 
 // Helper function to merge updated files with existing files
@@ -68,13 +69,15 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { description, existingFiles, editInstruction } = validationResult.data;
+        const { description, existingFiles, editInstruction, useBuggyCode, useFixer } = validationResult.data;
 
         console.log('✅ Validation passed, API Request:', {
             isEdit: !!(existingFiles && editInstruction),
             filesCount: existingFiles?.length || 0,
             editInstruction: editInstruction || 'none',
-            description: description || 'none'
+            description: description || 'none',
+            useBuggyCode,
+            useFixer
         });
 
         let filesToSandbox;
@@ -94,8 +97,8 @@ export async function POST(request: NextRequest) {
         } else {
             // Generate new app
             console.log('🆕 Processing new generation request...');
-            if (debug) {
-                console.log('🐛 Debug mode: using buggy code');
+            if (useBuggyCode) {
+                console.log('🐛 Using buggy code as requested');
                 filesToSandbox = buggyCode;
             } else {
                 console.log('🤖 Calling AI to generate app...');
@@ -105,28 +108,44 @@ export async function POST(request: NextRequest) {
 
         console.log('📦 Files ready for sandbox:', filesToSandbox.length);
 
-        // Repair the generated code using Benchify's API
-        // const { data } = await benchify.fixer.run({
-        //     files: filesToSandbox.map(file => ({
-        //         path: file.path,
-        //         contents: file.content
-        //     }))
-        // });
-
         let repairedFiles = filesToSandbox;
-        // if (data) {
-        //     const { success, diff } = data;
 
-        //     if (success && diff) {
-        //         repairedFiles = filesToSandbox.map(file => {
-        //             const patchResult = applyPatch(file.content, diff);
-        //             return {
-        //                 ...file,
-        //                 content: typeof patchResult === 'string' ? patchResult : file.content
-        //             };
-        //         });
-        //     }
-        // }
+        // Repair the generated code using Benchify's API if requested
+        if (useFixer) {
+            console.log('🔧 Running Benchify fixer...');
+            try {
+                const { data } = await benchify.fixer.run({
+                    files: filesToSandbox.map(file => ({
+                        path: file.path,
+                        contents: file.content
+                    }))
+                });
+
+                if (data) {
+                    const { success, diff } = data;
+
+                    if (success && diff) {
+                        console.log('✅ Fixer applied successfully');
+                        repairedFiles = filesToSandbox.map(file => {
+                            const patchResult = applyPatch(file.content, diff);
+                            return {
+                                ...file,
+                                content: typeof patchResult === 'string' ? patchResult : file.content
+                            };
+                        });
+                    } else {
+                        console.log('⚠️ Fixer ran but no fixes were applied');
+                    }
+                } else {
+                    console.log('⚠️ Fixer returned no data');
+                }
+            } catch (error) {
+                console.error('❌ Error running fixer:', error);
+                // Continue with original files if fixer fails
+            }
+        } else {
+            console.log('⏭️ Skipping fixer as requested');
+        }
 
         console.log('🏗️  Creating sandbox...');
         const sandboxResult = await createSandbox({ files: repairedFiles });

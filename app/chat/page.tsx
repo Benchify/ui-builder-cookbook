@@ -53,6 +53,10 @@ export default function ChatPage() {
 
     const startGeneration = async (prompt: string) => {
         try {
+            // Get toggle values from sessionStorage
+            const useBuggyCode = sessionStorage.getItem('useBuggyCode') === 'true';
+            const useFixer = sessionStorage.getItem('useFixer') === 'true';
+
             const response = await fetch('/api/generate', {
                 method: 'POST',
                 headers: {
@@ -62,6 +66,8 @@ export default function ChatPage() {
                     type: 'component',
                     description: prompt,
                     preview: true,
+                    useBuggyCode,
+                    useFixer,
                 }),
             });
 

@@ -94,6 +94,10 @@ ${errorDetails}
 
 Please make the minimal changes necessary to resolve these errors while maintaining existing functionality.`;
 
+            // Get toggle values from sessionStorage
+            const useBuggyCode = sessionStorage.getItem('useBuggyCode') === 'true';
+            const useFixer = sessionStorage.getItem('useFixer') === 'true';
+
             // Use the existing edit API
             const response = await fetch('/api/generate', {
                 method: 'POST',
@@ -105,6 +109,8 @@ Please make the minimal changes necessary to resolve these errors while maintain
                     description: '',
                     existingFiles: currentFiles,
                     editInstruction: fixInstruction,
+                    useBuggyCode,
+                    useFixer,
                 }),
             });
 
@@ -198,17 +204,6 @@ Please make the minimal changes necessary to resolve these errors while maintain
                         ))}
                     </div>
                 </ScrollArea>
-
-                <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-                    <h4 className="text-sm font-medium mb-2">💡 Common Solutions:</h4>
-                    <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>• Check for missing imports or typos in component names</li>
-                        <li>• Verify that all props are properly typed</li>
-                        <li>• Make sure all dependencies are correctly installed</li>
-                        <li>• Try regenerating the component with more specific requirements</li>
-                        {currentFiles && <li>• Use the &quot;Fix with AI&quot; button above for automatic error resolution</li>}
-                    </ul>
-                </div>
             </div>
         </div>
     );

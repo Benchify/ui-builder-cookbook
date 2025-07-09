@@ -87,6 +87,10 @@ export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult }: C
             };
             setMessages(prev => [...prev, thinkingMessage]);
 
+            // Get toggle values from sessionStorage  
+            const useBuggyCode = sessionStorage.getItem('useBuggyCode') === 'true';
+            const useFixer = sessionStorage.getItem('useFixer') === 'true';
+
             // Call the edit API
             const response = await fetch('/api/generate', {
                 method: 'POST',
@@ -98,6 +102,8 @@ export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult }: C
                     description: '', // Not used for edits
                     existingFiles: currentFiles,
                     editInstruction: editInstruction,
+                    useBuggyCode,
+                    useFixer,
                 }),
             });
 
