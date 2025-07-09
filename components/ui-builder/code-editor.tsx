@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { benchifyFileSchema } from "@/lib/schemas";
 import { z } from "zod";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -83,7 +83,8 @@ export function CodeEditor({ files = [] }: CodeEditorProps) {
         return { tree: root, allFolders };
     }, []);
 
-    const { tree: fileTree, allFolders } = buildFileTree(files);
+    // Memoize the file tree calculation to prevent infinite re-renders
+    const { tree: fileTree, allFolders } = useMemo(() => buildFileTree(files), [files, buildFileTree]);
     const selectedFile = files.find(f => f.path === selectedFilePath);
 
     // Open all folders by default (only once when files change)
@@ -98,7 +99,7 @@ export function CodeEditor({ files = [] }: CodeEditorProps) {
         if (!selectedFilePath && files.length > 0) {
             setSelectedFilePath(files[0].path);
         }
-    }, [files, selectedFilePath]);
+    }, [files.length, selectedFilePath]); // Use files.length instead of files array
 
     // Get file icon based on extension
     const getFileIcon = (path: string) => {
