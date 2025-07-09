@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
                 }
             } catch (error) {
                 // Continue with original files if fixer fails
+                console.error('Fixer failed:', error);
             }
         }
 

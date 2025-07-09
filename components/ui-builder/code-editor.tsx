@@ -99,7 +99,7 @@ export function CodeEditor({ files = [] }: CodeEditorProps) {
         if (!selectedFilePath && files.length > 0) {
             setSelectedFilePath(files[0].path);
         }
-    }, [files.length, selectedFilePath]); // Use files.length instead of files array
+    }, [files, selectedFilePath]); // Include files since we access files[0]
 
     // Get file icon based on extension
     const getFileIcon = (path: string) => {

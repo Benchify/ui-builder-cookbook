@@ -50,7 +50,7 @@ export function PromptForm() {
         } else if (!watchUseBuggyCode && currentDescription === buggyCodeText) {
             form.setValue('description', '');
         }
-    }, [watchUseBuggyCode]);
+    }, [watchUseBuggyCode, currentDescription, form]);
 
     async function onSubmit(values: z.infer<typeof formSchema>) {
         // Store the prompt and settings in sessionStorage and navigate immediately
