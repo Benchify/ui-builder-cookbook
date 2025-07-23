@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { benchifyFileSchema } from '@/lib/schemas';
 import { z } from 'zod';
+import { generateApp } from '@/lib/actions/generate-app';
 
 interface Message {
     id: string;
@@ -91,20 +92,15 @@ export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult }: C
             const useBuggyCode = sessionStorage.getItem('useBuggyCode') === 'true';
             const useFixer = sessionStorage.getItem('useFixer') === 'true';
 
-            // Call the edit API
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    type: 'component',
-                    description: '', // Not used for edits
-                    existingFiles: currentFiles,
-                    editInstruction: editInstruction,
-                    useBuggyCode,
-                    useFixer,
-                }),
+            // Call the server action
+            const editResult = await generateApp({
+                type: 'component',
+                description: '', // Not used for edits
+                preview: true,
+                existingFiles: currentFiles,
+                editInstruction: editInstruction,
+                useBuggyCode,
+                useFixer,
             });
 
             console.log('Edit request:', {
@@ -113,11 +109,9 @@ export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult }: C
                 filesCount: currentFiles?.length || 0
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to edit component');
+            if ('error' in editResult) {
+                throw new Error(editResult.message);
             }
-
-            const editResult = await response.json();
             console.log('Edit response:', editResult);
 
             // Update the result in the parent component

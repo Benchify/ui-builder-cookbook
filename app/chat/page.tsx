@@ -6,21 +6,10 @@ import { ChatInterface } from '@/components/ui-builder/chat-interface';
 import { PreviewCard } from '@/components/ui-builder/preview-card';
 import { benchifyFileSchema } from '@/lib/schemas';
 import { z } from 'zod';
+import { generateApp, GenerateAppResult } from '@/lib/actions/generate-app';
 
-type GenerationResult = {
-    repairedFiles?: z.infer<typeof benchifyFileSchema>;
-    originalFiles?: z.infer<typeof benchifyFileSchema>;
-    buildOutput: string;
-    previewUrl: string;
-    buildErrors?: Array<{
-        type: 'typescript' | 'build' | 'runtime';
-        message: string;
-        file?: string;
-        line?: number;
-        column?: number;
-    }>;
-    hasErrors?: boolean;
-};
+// Extract the success type from the union
+type GenerationResult = Extract<GenerateAppResult, { buildOutput: string }>;
 
 export default function ChatPage() {
     const router = useRouter();
@@ -57,25 +46,18 @@ export default function ChatPage() {
             const useBuggyCode = sessionStorage.getItem('useBuggyCode') === 'true';
             const useFixer = sessionStorage.getItem('useFixer') === 'true';
 
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    type: 'component',
-                    description: prompt,
-                    preview: true,
-                    useBuggyCode,
-                    useFixer,
-                }),
+            const generationResult = await generateApp({
+                type: 'component',
+                description: prompt,
+                preview: true,
+                useBuggyCode,
+                useFixer,
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to generate component');
+            // Check if it's an error result
+            if ('error' in generationResult) {
+                throw new Error(generationResult.message);
             }
-
-            const generationResult = await response.json();
 
             // Store the result
             sessionStorage.setItem('builderResult', JSON.stringify(generationResult));

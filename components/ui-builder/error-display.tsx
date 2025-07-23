@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { benchifyFileSchema } from '@/lib/schemas';
 import { z } from 'zod';
+import { generateApp } from '@/lib/actions/generate-app';
 
 interface BuildError {
     type: 'typescript' | 'build' | 'runtime';
@@ -18,12 +19,12 @@ interface BuildError {
 }
 
 interface FixResult {
-    originalFiles: z.infer<typeof benchifyFileSchema>;
-    repairedFiles: z.infer<typeof benchifyFileSchema>;
+    originalFiles?: z.infer<typeof benchifyFileSchema>;
+    repairedFiles?: z.infer<typeof benchifyFileSchema>;
     buildOutput: string;
     previewUrl: string;
     buildErrors?: BuildError[];
-    hasErrors: boolean;
+    hasErrors?: boolean;
     editInstruction?: string;
 }
 
@@ -98,27 +99,20 @@ Please make the minimal changes necessary to resolve these errors while maintain
             const useBuggyCode = sessionStorage.getItem('useBuggyCode') === 'true';
             const useFixer = sessionStorage.getItem('useFixer') === 'true';
 
-            // Use the existing edit API
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    type: 'component',
-                    description: '',
-                    existingFiles: currentFiles,
-                    editInstruction: fixInstruction,
-                    useBuggyCode,
-                    useFixer,
-                }),
+            // Use the server action
+            const fixResult = await generateApp({
+                type: 'component',
+                description: '',
+                preview: true,
+                existingFiles: currentFiles,
+                editInstruction: fixInstruction,
+                useBuggyCode,
+                useFixer,
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to fix errors with AI');
+            if ('error' in fixResult) {
+                throw new Error(fixResult.message);
             }
-
-            const fixResult = await response.json();
 
             // Notify parent component of the fix result
             if (onFixComplete) {
