@@ -2,7 +2,7 @@ import { Process } from '@e2b/sdk';
 
 export interface GeneratedFile {
     path: string;
-    content: string;
+    contents: string;
 }
 
 export interface SandboxFile {

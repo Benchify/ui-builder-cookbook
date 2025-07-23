@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { benchifyFileSchema } from '@/lib/schemas';
 import { z } from 'zod';
 import { generateApp } from '@/lib/actions/generate-app';
-import { runBenchifyFixer, type BenchifyFixerResult } from '@/lib/actions/benchify-fixer';
+import { runBenchifyFixer } from '@/lib/actions/benchify-fixer';
 
 interface BuildError {
     type: 'typescript' | 'build' | 'runtime';

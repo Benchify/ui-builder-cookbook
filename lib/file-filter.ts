@@ -4,7 +4,7 @@ import { benchifyFileSchema } from './schemas';
 
 export type FileEntry = {
     path: string;
-    content: string;
+    contents: string;
 };
 
 // List of boilerplate files to filter out from results
@@ -116,7 +116,7 @@ async function listFilesRecursively(
                     // Add file to result array with normalized path
                     result.push({
                         path: normalizedPath,
-                        content: contentStr
+                        contents: contentStr
                     });
 
                 } catch (error) {

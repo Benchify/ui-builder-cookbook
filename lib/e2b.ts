@@ -38,7 +38,7 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
     // Write files directly to the working directory (/app)
     const filesToWrite = transformedFiles.map(file => ({
         path: `/app/${file.path}`,
-        data: file.content
+        data: file.contents
     }));
 
     await sandbox.files.write(filesToWrite);
@@ -50,7 +50,7 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
     if (packageJsonFile) {
         console.log('package.json detected, checking for new dependencies...');
         try {
-            const newPackages = extractNewPackages(packageJsonFile.content);
+            const newPackages = extractNewPackages(packageJsonFile.contents);
 
             if (newPackages.length > 0) {
                 console.log('Installing new packages:', newPackages);

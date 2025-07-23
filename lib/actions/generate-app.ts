@@ -13,15 +13,15 @@ type GenerateAppInput = {
     description: string;
     preview: boolean;
     requirements?: string;
-    existingFiles?: Array<{ path: string; content: string }>;
+    existingFiles?: Array<{ path: string; contents: string }>;
     editInstruction?: string;
     useBuggyCode?: boolean;
     useFixer?: boolean;
 };
 
 export type GenerateAppResult = {
-    originalFiles?: Array<{ path: string; content: string }>;
-    repairedFiles?: Array<{ path: string; content: string }>;
+    originalFiles?: Array<{ path: string; contents: string }>;
+    repairedFiles?: Array<{ path: string; contents: string }>;
     buildOutput: string;
     previewUrl: string;
     buildErrors?: Array<{
@@ -54,9 +54,9 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
             try {
                 console.log("Trying fixer")
                 const fixerResult = await benchify.fixer.run({
-                    files: filesToSandbox.map((file: { path: string; content: string }) => ({
+                    files: filesToSandbox.map((file: { path: string; contents: string }) => ({
                         path: file.path,
-                        contents: file.content
+                        contents: file.contents
                     })),
                     fixes: {
                         stringLiterals: true,
@@ -65,11 +65,8 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
 
                 const fixedFiles = (fixerResult as any).data?.suggested_changes?.all_files;
                 if (fixedFiles && Array.isArray(fixedFiles)) {
-                    // Convert from fixer format (contents) to our format (content)
-                    repairedFiles = fixedFiles.map((file: any) => ({
-                        path: file.path,
-                        content: file.contents
-                    }));
+                    // Use the fixer files directly since they already have the correct format
+                    repairedFiles = fixedFiles;
                 }
 
                 console.log('🔧 Benchify fixer data:', repairedFiles);

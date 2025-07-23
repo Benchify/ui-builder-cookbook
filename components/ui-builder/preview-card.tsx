@@ -46,12 +46,12 @@ interface BuildError {
 }
 
 interface FixResult {
-    originalFiles: z.infer<typeof benchifyFileSchema>;
-    repairedFiles: z.infer<typeof benchifyFileSchema>;
+    originalFiles?: z.infer<typeof benchifyFileSchema>;
+    repairedFiles?: z.infer<typeof benchifyFileSchema>;
     buildOutput: string;
     previewUrl: string;
     buildErrors?: BuildError[];
-    hasErrors: boolean;
+    hasErrors?: boolean;
     editInstruction?: string;
 }
 

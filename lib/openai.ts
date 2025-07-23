@@ -14,13 +14,13 @@ if (!OPENAI_API_KEY) {
 // Schema for a single file
 const fileSchema = z.object({
     path: z.string(),
-    content: z.string()
+    contents: z.string()
 });
 
 // Generate a new application using AI SDK
 export async function createNewApp(
     description: string,
-): Promise<Array<{ path: string; content: string }>> {
+): Promise<Array<{ path: string; contents: string }>> {
     console.log("Creating app with description: ", description);
 
     try {
@@ -71,7 +71,7 @@ export async function editApp(
     editInstruction: string,
 ): Promise<z.infer<typeof benchifyFileSchema>> {
     console.log("Editing app with instruction: ", editInstruction);
-    console.log('Existing files:', existingFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
+    console.log('Existing files:', existingFiles.map(f => ({ path: f.path, contentLength: f.contents.length })));
 
     try {
         const { elementStream } = streamObject({
@@ -94,11 +94,11 @@ export async function editApp(
             throw new Error("Failed to generate updated files - received empty response");
         }
 
-        console.log("Generated updated files: ", updatedFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
+        console.log("Generated updated files: ", updatedFiles.map(f => ({ path: f.path, contentLength: f.contents.length })));
 
         // Merge the updated files with the existing files
         const mergedFiles = mergeFiles(existingFiles, updatedFiles);
-        console.log('Final merged files:', mergedFiles.map(f => ({ path: f.path, contentLength: f.content.length })));
+        console.log('Final merged files:', mergedFiles.map(f => ({ path: f.path, contentLength: f.contents.length })));
 
         return mergedFiles;
     } catch (error) {
@@ -128,7 +128,7 @@ export async function generateAppCode(
             return [
                 {
                     path: "src/App.tsx",
-                    content: `export interface Vehicle {
+                    contents: `export interface Vehicle {
     id: string
     title: string
     price: number

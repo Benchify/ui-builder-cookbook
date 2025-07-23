@@ -4,7 +4,7 @@ import { z } from 'zod';
 // Benchify API schema - matching the exact format in the API docs
 export const benchifyFileSchema = z.array(z.object({
     path: z.string(),
-    content: z.string()
+    contents: z.string()
 }));
 
 export const benchifyRequestSchema = z.object({
