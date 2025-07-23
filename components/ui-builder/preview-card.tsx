@@ -25,6 +25,7 @@ interface FixResult {
     repairedFiles?: z.infer<typeof benchifyFileSchema>;
     buildOutput: string;
     previewUrl: string;
+    sandboxId?: string; // Add sandbox ID to match the fixer result (optional for backwards compatibility)
     buildErrors?: BuildError[];
     hasErrors?: boolean;
     editInstruction?: string;
@@ -39,6 +40,7 @@ interface PreviewCardProps {
     hasErrors?: boolean;
     onFixComplete?: (result: FixResult) => void;
     sessionId?: string;
+    sandboxId?: string; // Add sandbox ID for reusing existing sandbox
 }
 
 export function PreviewCard({
@@ -49,7 +51,8 @@ export function PreviewCard({
     buildErrors = [],
     hasErrors = false,
     onFixComplete,
-    sessionId
+    sessionId,
+    sandboxId
 }: PreviewCardProps) {
     const files = code || [];
     const { progress, isConnected, error: progressError } = useProgress(sessionId || null);
@@ -156,6 +159,7 @@ export function PreviewCard({
                             currentFiles={files}
                             onFixComplete={onFixComplete}
                             sessionId={sessionId}
+                            sandboxId={sandboxId}
                         />
                     ) : previewUrl ? (
                         // Show the actual preview iframe when ready

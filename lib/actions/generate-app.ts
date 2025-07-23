@@ -26,6 +26,7 @@ export type GenerateAppResult = {
     repairedFiles?: Array<{ path: string; contents: string }>;
     buildOutput: string;
     previewUrl: string;
+    sandboxId?: string;
     buildErrors?: Array<{
         type: 'typescript' | 'build' | 'runtime';
         message: string;
@@ -143,6 +144,7 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
             repairedFiles: sandboxResult.allFiles,
             buildOutput: `Sandbox created with template: ${sandboxResult.template}, ID: ${sandboxResult.sbxId}`,
             previewUrl: sandboxResult.url,
+            sandboxId: sandboxResult.sbxId,
             buildErrors: sandboxResult.buildErrors,
             hasErrors: sandboxResult.hasErrors,
             sessionId,

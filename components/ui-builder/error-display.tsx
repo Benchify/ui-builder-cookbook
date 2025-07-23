@@ -37,9 +37,10 @@ interface ErrorDisplayProps {
     currentFiles?: z.infer<typeof benchifyFileSchema>;
     onFixComplete?: (result: FixResult) => void;
     sessionId?: string;
+    sandboxId?: string; // Add sandbox ID to reuse existing sandbox
 }
 
-export function ErrorDisplay({ errors, currentFiles, onFixComplete, sessionId }: ErrorDisplayProps) {
+export function ErrorDisplay({ errors, currentFiles, onFixComplete, sessionId, sandboxId }: ErrorDisplayProps) {
     const [isFixing, setIsFixing] = useState(false);
     const [isBenchifyFixing, setIsBenchifyFixing] = useState(false);
     const [fixSessionId, setFixSessionId] = useState<string | null>(null);
@@ -208,9 +209,11 @@ Please make the minimal changes necessary to resolve these errors while maintain
 
         try {
             // Run the Benchify fixer on current files
+            console.log('🔄 Running Benchify fixer with sandboxId:', sandboxId);
             const fixResult = await runBenchifyFixer({
                 files: currentFiles,
                 sessionId: newSessionId,
+                existingSandboxId: sandboxId, // Reuse existing sandbox if available
             });
 
             if ('error' in fixResult) {
