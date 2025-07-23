@@ -74,8 +74,8 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
         },
         {
             id: 'finalizing-preview',
-            label: 'Finalizing Preview',
-            description: 'Preparing your application for preview'
+            label: 'Loading Application',
+            description: 'Waiting for your application to fully load and render'
         }
     ];
 

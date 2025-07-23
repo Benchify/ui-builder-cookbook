@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { CheckCircle, Circle, Loader2, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,7 +53,6 @@ export function PreviewCard({
 }: PreviewCardProps) {
     const files = code || [];
     const { progress, isConnected, error: progressError } = useProgress(sessionId || null);
-
     // Log only when there's actual progress
     if (progress && progress.steps.length > 0) {
         console.log('📊 PreviewCard: Progress -', progress.steps[progress.currentStepIndex]?.label || 'Unknown step');
@@ -167,6 +166,7 @@ export function PreviewCard({
                                 className="w-full h-full"
                                 sandbox="allow-scripts allow-same-origin"
                             />
+
                         </div>
                     ) : (
                         // Show loading spinner if no preview URL yet

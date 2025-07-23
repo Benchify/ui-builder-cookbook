@@ -50,9 +50,19 @@ export async function runBenchifyFixer(input: BenchifyFixerInput): Promise<Bench
             description: 'Setting up development environment with optimized code'
         },
         {
-            id: 'deploying-preview',
-            label: 'Building Preview',
-            description: 'Compiling and deploying the optimized application'
+            id: 'installing-deps',
+            label: 'Installing Dependencies',
+            description: 'Installing required packages and dependencies'
+        },
+        {
+            id: 'starting-server',
+            label: 'Starting Dev Server',
+            description: 'Starting development server and running health checks'
+        },
+        {
+            id: 'finalizing-preview',
+            label: 'Loading Application',
+            description: 'Waiting for your optimized application to fully load and render'
         }
     ];
 
@@ -92,14 +102,9 @@ export async function runBenchifyFixer(input: BenchifyFixerInput): Promise<Bench
 
         progressTracker?.completeStep('running-fixer');
 
-        // Step 2: Create sandbox with the repaired files
+        // Step 2-5: Create sandbox with detailed progress tracking
         progressTracker?.startStep('creating-sandbox');
-        const sandboxResult = await createSandbox({ files: repairedFiles, progressTracker: null });
-        progressTracker?.completeStep('creating-sandbox');
-
-        // Step 3: Deploy preview
-        progressTracker?.startStep('deploying-preview');
-        progressTracker?.completeStep('deploying-preview');
+        const sandboxResult = await createSandbox({ files: repairedFiles, progressTracker: progressTracker });
 
         // Return the results in the same format as generate-app
         return {
