@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChatInterface } from '@/components/ui-builder/chat-interface';
 import { PreviewCard } from '@/components/ui-builder/preview-card';
 import { generateApp, GenerateAppResult } from '@/lib/actions/generate-app';
+import { generateSessionId } from '@/lib/progress-tracker';
 
 // Extract the success type from the union
 type GenerationResult = Extract<GenerateAppResult, { buildOutput: string }>;
@@ -14,11 +15,14 @@ export default function ChatPage() {
     const [result, setResult] = useState<GenerationResult | null>(null);
     const [initialPrompt, setInitialPrompt] = useState<string>('');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const generationStartedRef = useRef(false);
 
     useEffect(() => {
         // Get the prompt and check if we have an existing result
         const storedPrompt = sessionStorage.getItem('initialPrompt');
         const storedResult = sessionStorage.getItem('builderResult');
+        const storedSessionId = sessionStorage.getItem('progressSessionId');
 
         if (!storedPrompt) {
             // If no prompt found, redirect back to home
@@ -30,15 +34,30 @@ export default function ChatPage() {
 
         if (storedResult) {
             // If we have a stored result, use it
-            setResult(JSON.parse(storedResult));
-        } else {
-            // If no result, start the generation process
+            const parsedResult = JSON.parse(storedResult);
+            setResult(parsedResult);
+            // IMPORTANT: Use sessionId from the result first, then fallback to stored
+            const resultSessionId = parsedResult.sessionId || storedSessionId;
+            console.log('💾 Using stored result with sessionId:', resultSessionId);
+            setSessionId(resultSessionId);
+
+            // Clear the stored session ID to prevent confusion on next generation
+            sessionStorage.removeItem('progressSessionId');
+        } else if (!generationStartedRef.current) {
+            // If no result and generation hasn't started yet, start the generation process
+            generationStartedRef.current = true;
+            const newSessionId = generateSessionId();
+            console.log('💡 Generated new session ID for generation:', newSessionId);
+            setSessionId(newSessionId);
+            sessionStorage.setItem('progressSessionId', newSessionId);
             setIsGenerating(true);
-            startGeneration(storedPrompt);
+            startGeneration(storedPrompt, newSessionId);
         }
     }, [router]);
 
-    const startGeneration = async (prompt: string) => {
+    const startGeneration = async (prompt: string, progressSessionId: string) => {
+        console.log('🚀 Starting generation with sessionId:', progressSessionId);
+
         try {
             // Get toggle values from sessionStorage
             const useBuggyCode = sessionStorage.getItem('useBuggyCode') === 'true';
@@ -50,6 +69,12 @@ export default function ChatPage() {
                 preview: true,
                 useBuggyCode,
                 useFixer,
+                sessionId: progressSessionId,
+            });
+
+            console.log('📦 Generation result received:', {
+                hasError: 'error' in generationResult,
+                sessionId: generationResult.sessionId
             });
 
             // Check if it's an error result
@@ -57,21 +82,36 @@ export default function ChatPage() {
                 throw new Error(generationResult.message);
             }
 
-            // Store the result
-            sessionStorage.setItem('builderResult', JSON.stringify(generationResult));
-            setResult(generationResult);
+            // Store the result (make sure sessionId is included)
+            const resultWithSession = {
+                ...generationResult,
+                sessionId: progressSessionId // Ensure sessionId is always present
+            };
+            sessionStorage.setItem('builderResult', JSON.stringify(resultWithSession));
+            setResult(resultWithSession);
+
+            // CRITICAL: Make sure sessionId state matches the result
+            console.log('🔄 Ensuring sessionId state matches result:', progressSessionId);
+            setSessionId(progressSessionId);
+
             setIsGenerating(false);
+            generationStartedRef.current = false; // Reset flag for future generations
         } catch (error) {
             console.error('Error generating component:', error);
             setIsGenerating(false);
+            generationStartedRef.current = false; // Reset flag even on error
             // Handle error state
         }
     };
 
     const handleUpdateResult = (updatedResult: GenerationResult) => {
-        setResult(updatedResult);
-        // Save updated result to sessionStorage
-        sessionStorage.setItem('builderResult', JSON.stringify(updatedResult));
+        // Preserve the session ID when updating results
+        const resultWithSession = {
+            ...updatedResult,
+            sessionId: sessionId || updatedResult.sessionId
+        };
+        setResult(resultWithSession);
+        sessionStorage.setItem('builderResult', JSON.stringify(resultWithSession));
     };
 
     // Show loading spinner if we don't have prompt yet
@@ -94,6 +134,7 @@ export default function ChatPage() {
                     initialPrompt={initialPrompt}
                     currentFiles={result?.repairedFiles || result?.originalFiles}
                     onUpdateResult={handleUpdateResult}
+                    sessionId={sessionId || undefined}
                 />
             </div>
 
@@ -107,6 +148,7 @@ export default function ChatPage() {
                     buildErrors={result?.buildErrors}
                     hasErrors={result?.hasErrors}
                     onFixComplete={handleUpdateResult}
+                    sessionId={sessionId || undefined}
                 />
             </div>
         </div>

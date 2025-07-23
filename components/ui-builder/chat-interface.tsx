@@ -34,9 +34,10 @@ interface ChatInterfaceProps {
         }>;
         hasErrors?: boolean;
     }) => void;
+    sessionId?: string;
 }
 
-export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult }: ChatInterfaceProps) {
+export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult, sessionId }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
@@ -101,6 +102,7 @@ export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult }: C
                 editInstruction: editInstruction,
                 useBuggyCode,
                 useFixer,
+                sessionId: sessionId,
             });
 
             console.log('Edit request:', {
