@@ -63,7 +63,16 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
                     }
                 });
 
-                console.log('🔧 Benchify fixer data:', JSON.stringify(fixerResult, null, 2));
+                const fixedFiles = (fixerResult as any).data?.suggested_changes?.all_files;
+                if (fixedFiles && Array.isArray(fixedFiles)) {
+                    // Convert from fixer format (contents) to our format (content)
+                    repairedFiles = fixedFiles.map((file: any) => ({
+                        path: file.path,
+                        content: file.contents
+                    }));
+                }
+
+                console.log('🔧 Benchify fixer data:', repairedFiles);
 
             } catch (error) {
                 // Continue with original files if fixer fails
@@ -72,6 +81,8 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
         }
 
         const sandboxResult = await createSandbox({ files: repairedFiles });
+
+        console.log("url", sandboxResult.url);
 
         // Return the results
         return {
