@@ -25,6 +25,7 @@ interface ChatInterfaceProps {
         originalFiles?: z.infer<typeof benchifyFileSchema>;
         buildOutput: string;
         previewUrl: string;
+        sandboxId?: string;
         buildErrors?: Array<{
             type: 'typescript' | 'build' | 'runtime';
             message: string;
@@ -35,9 +36,10 @@ interface ChatInterfaceProps {
         hasErrors?: boolean;
     }) => void;
     sessionId?: string;
+    sandboxId?: string; // Add sandbox ID for reusing existing sandbox
 }
 
-export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult, sessionId }: ChatInterfaceProps) {
+export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult, sessionId, sandboxId }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
@@ -94,6 +96,7 @@ export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult, ses
             const useFixer = sessionStorage.getItem('useFixer') === 'true';
 
             // Call the server action
+            console.log('🔄 Running chat edit with sandboxId:', sandboxId);
             const editResult = await generateApp({
                 type: 'component',
                 description: '', // Not used for edits
@@ -103,6 +106,7 @@ export function ChatInterface({ initialPrompt, currentFiles, onUpdateResult, ses
                 useBuggyCode,
                 useFixer,
                 sessionId: sessionId,
+                existingSandboxId: sandboxId, // Reuse existing sandbox if available
             });
 
             console.log('Edit request:', {

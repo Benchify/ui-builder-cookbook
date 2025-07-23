@@ -135,6 +135,7 @@ export default function ChatPage() {
                     currentFiles={result?.repairedFiles || result?.originalFiles}
                     onUpdateResult={handleUpdateResult}
                     sessionId={sessionId || undefined}
+                    sandboxId={result?.sandboxId}
                 />
             </div>
 
