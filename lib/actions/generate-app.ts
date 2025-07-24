@@ -1,7 +1,7 @@
 'use server';
 
 import { generateAppCode } from '@/lib/openai';
-import { createSandbox } from '@/lib/e2b';
+import { createSandbox, updateSandboxFiles } from '@/lib/e2b';
 import { Benchify } from 'benchify';
 import { ProgressTracker } from '@/lib/progress-tracker';
 
@@ -19,6 +19,7 @@ type GenerateAppInput = {
     useBuggyCode?: boolean;
     useFixer?: boolean;
     sessionId?: string;
+    existingSandboxId?: string; // Add support for reusing existing sandbox
 };
 
 export type GenerateAppResult = {
@@ -44,10 +45,46 @@ export type GenerateAppResult = {
 };
 
 export async function generateApp(input: GenerateAppInput): Promise<GenerateAppResult> {
-    const { description, existingFiles, editInstruction, useBuggyCode, useFixer, sessionId } = input;
+    const { description, existingFiles, editInstruction, useBuggyCode, useFixer, sessionId, existingSandboxId } = input;
 
-    // Define the actual steps that will happen
-    const steps = [
+    // Define the actual steps that will happen (different for new vs existing sandbox)
+    const steps = existingSandboxId ? [
+        {
+            id: 'generating-code',
+            label: 'Generating Code',
+            description: 'Creating components and functionality with AI assistance'
+        },
+        ...(useFixer ? [{
+            id: 'fixing-code',
+            label: 'Optimizing Code',
+            description: 'Running Benchify fixer to optimize and fix potential issues'
+        }] : []),
+        {
+            id: 'updating-files',
+            label: 'Updating Files',
+            description: 'Applying generated code to your existing sandbox'
+        },
+        {
+            id: 'installing-deps',
+            label: 'Installing Dependencies',
+            description: 'Installing any new required packages'
+        },
+        {
+            id: 'hot-reloading',
+            label: 'Hot Reloading',
+            description: 'Applying changes with hot reload for instant updates'
+        },
+        {
+            id: 'verifying-update',
+            label: 'Verifying Update',
+            description: 'Ensuring the updated code is working correctly'
+        },
+        {
+            id: 'finalizing-preview',
+            label: 'Finalizing',
+            description: 'Your updated application is ready!'
+        }
+    ] : [
         {
             id: 'generating-code',
             label: 'Generating Code',
@@ -130,19 +167,34 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
             }
         }
 
-        // Step 3: Create sandbox with progress tracking
-        progressTracker?.startStep('creating-sandbox');
-        const sandboxResult = await createSandbox({
-            files: repairedFiles,
-            progressTracker: progressTracker
-        });
+        // Step 3: Create or update sandbox with progress tracking
+        let sandboxResult;
+        if (existingSandboxId) {
+            // Update existing sandbox with generated/fixed files
+            console.log(`🔄 Updating existing sandbox: ${existingSandboxId}`);
+            sandboxResult = await updateSandboxFiles({
+                sandboxId: existingSandboxId,
+                files: repairedFiles,
+                progressTracker: progressTracker
+            });
+        } else {
+            // Create new sandbox
+            console.log('🆕 Creating new sandbox');
+            progressTracker?.startStep('creating-sandbox');
+            sandboxResult = await createSandbox({
+                files: repairedFiles,
+                progressTracker: progressTracker
+            });
+        }
         progressTracker?.completeStep('finalizing-preview');
 
         // Return the results
         return {
             originalFiles: filesToSandbox,
             repairedFiles: sandboxResult.allFiles,
-            buildOutput: `Sandbox created with template: ${sandboxResult.template}, ID: ${sandboxResult.sbxId}`,
+            buildOutput: existingSandboxId
+                ? `Sandbox updated with AI-generated code, ID: ${sandboxResult.sbxId}`
+                : `Sandbox created with template: ${sandboxResult.template}, ID: ${sandboxResult.sbxId}`,
             previewUrl: sandboxResult.url,
             sandboxId: sandboxResult.sbxId,
             buildErrors: sandboxResult.buildErrors,

@@ -171,6 +171,7 @@ Please make the minimal changes necessary to resolve these errors while maintain
             const useFixer = sessionStorage.getItem('useFixer') === 'true';
 
             // Use the server action
+            console.log('🔄 Running AI fix with sandboxId:', sandboxId);
             const fixResult = await generateApp({
                 type: 'component',
                 description: '',
@@ -180,6 +181,7 @@ Please make the minimal changes necessary to resolve these errors while maintain
                 useBuggyCode,
                 useFixer,
                 sessionId: newSessionId,
+                existingSandboxId: sandboxId, // Reuse existing sandbox if available
             });
 
             if ('error' in fixResult) {
