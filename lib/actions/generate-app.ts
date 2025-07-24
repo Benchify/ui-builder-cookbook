@@ -47,12 +47,17 @@ export type GenerateAppResult = {
 export async function generateApp(input: GenerateAppInput): Promise<GenerateAppResult> {
     const { description, existingFiles, editInstruction, useBuggyCode, useFixer, sessionId, existingSandboxId } = input;
 
-    // Define the actual steps that will happen (different for new vs existing sandbox)
+    // Detect if this is a repair operation (fixing build errors)
+    const isRepairMode = existingSandboxId && editInstruction && editInstruction.includes('Fix the following build errors');
+
+    // Define the actual steps that will happen (different for new vs existing vs repair)
     const steps = existingSandboxId ? [
         {
             id: 'generating-code',
-            label: 'Generating Code',
-            description: 'Creating components and functionality with AI assistance'
+            label: isRepairMode ? 'Generating Patch' : 'Generating Code',
+            description: isRepairMode
+                ? 'Attempting to generate patch with AI to fix build errors'
+                : 'Creating components and functionality with AI assistance'
         },
         ...(useFixer ? [{
             id: 'fixing-code',
