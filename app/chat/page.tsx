@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChatInterface } from '@/components/ui-builder/chat-interface';
 import { PreviewCard } from '@/components/ui-builder/preview-card';
-import { benchifyFileSchema } from '@/lib/schemas';
-import { z } from 'zod';
 import { generateApp, GenerateAppResult } from '@/lib/actions/generate-app';
 
 // Extract the success type from the union

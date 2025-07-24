@@ -27,7 +27,7 @@ interface FileNode {
     path: string;
     type: 'file' | 'folder';
     children?: FileNode[];
-    content?: string;
+    contents?: string;
 }
 
 export function CodeEditor({ files = [] }: CodeEditorProps) {
@@ -35,7 +35,7 @@ export function CodeEditor({ files = [] }: CodeEditorProps) {
     const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
 
     // Build file tree structure (pure function, no side effects)
-    const buildFileTree = useCallback((files: Array<{ path: string; content: string }>): { tree: FileNode[], allFolders: string[] } => {
+    const buildFileTree = useCallback((files: Array<{ path: string; contents: string }>): { tree: FileNode[], allFolders: string[] } => {
         const root: FileNode[] = [];
         const folderMap = new Map<string, FileNode>();
         const allFolders: string[] = [];
@@ -59,7 +59,7 @@ export function CodeEditor({ files = [] }: CodeEditorProps) {
                         name: part,
                         path: file.path,
                         type: 'file',
-                        content: file.content
+                        contents: file.contents
                     });
                 } else {
                     // It's a folder
@@ -238,7 +238,7 @@ export function CodeEditor({ files = [] }: CodeEditorProps) {
                                 </pre>
                             )}
                         >
-                            {selectedFile.content}
+                            {selectedFile.contents}
                         </SyntaxHighlighter>
                     </div>
                 ) : (

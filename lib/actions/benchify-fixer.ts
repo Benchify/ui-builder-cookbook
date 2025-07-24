@@ -2,18 +2,19 @@
 
 import { Benchify } from 'benchify';
 import { createSandbox } from '@/lib/e2b';
+import { FixerRunResponse } from 'benchify/resources/fixer.mjs';
 
 const benchify = new Benchify({
     apiKey: process.env.BENCHIFY_API_KEY,
 });
 
 type BenchifyFixerInput = {
-    files: Array<{ path: string; content: string }>;
+    files: Array<{ path: string; contents: string }>;
 };
 
 export type BenchifyFixerResult = {
-    originalFiles: Array<{ path: string; content: string }>;
-    repairedFiles: Array<{ path: string; content: string }>;
+    originalFiles: Array<{ path: string; contents: string }>;
+    repairedFiles: Array<{ path: string; contents: string }>;
     buildOutput: string;
     previewUrl: string;
     buildErrors?: Array<{
@@ -37,7 +38,7 @@ export async function runBenchifyFixer(input: BenchifyFixerInput): Promise<Bench
         const fixerResult = await benchify.fixer.run({
             files: files.map((file) => ({
                 path: file.path,
-                contents: file.content
+                contents: file.contents
             })),
             fixes: {
                 stringLiterals: true,
@@ -46,16 +47,13 @@ export async function runBenchifyFixer(input: BenchifyFixerInput): Promise<Bench
 
         console.log('🔧 Benchify fixer data:', JSON.stringify(fixerResult, null, 2));
 
-        // Convert the result back to the expected format
         // Use the correct path based on the actual Benchify response structure
-        let repairedFiles: Array<{ path: string; content: string }>;
+        let repairedFiles: Array<{ path: string; contents: string }>;
 
-        const fixerData = fixerResult as any;
-        if (fixerData?.data?.suggested_changes?.all_files) {
-            repairedFiles = fixerData.data.suggested_changes.all_files.map((file: any) => ({
-                path: file.path,
-                content: file.contents
-            }));
+        const fixerData = fixerResult as FixerRunResponse;
+        const allFilesFormat = fixerData?.data?.suggested_changes as { all_files?: Array<{ path: string; contents: string }> };
+        if (allFilesFormat?.all_files) {
+            repairedFiles = allFilesFormat.all_files;
         } else {
             // If the fixer doesn't return the expected structure, return original files
             console.warn('Unexpected fixer response structure, returning original files');
