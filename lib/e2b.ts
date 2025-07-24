@@ -3,6 +3,7 @@ import { benchifyFileSchema } from './schemas';
 import { z } from 'zod';
 import { fetchAllSandboxFiles } from './file-filter';
 import { applyTransformations } from './sandbox-helpers';
+import { ProgressTracker } from './progress-tracker';
 
 const E2B_API_KEY = process.env.E2B_API_KEY;
 
@@ -27,7 +28,10 @@ interface SandboxResult {
     hasErrors: boolean;
 }
 
-export async function createSandbox({ files }: { files: z.infer<typeof benchifyFileSchema> }): Promise<SandboxResult> {
+export async function createSandbox({ files, progressTracker }: {
+    files: z.infer<typeof benchifyFileSchema>;
+    progressTracker?: ProgressTracker | null;
+}): Promise<SandboxResult> {
     // Create sandbox from the improved template
     const sandbox = await Sandbox.create('vite-support', { apiKey: E2B_API_KEY });
     console.log(`Sandbox created: ${sandbox.sandboxId}`);
@@ -42,10 +46,12 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
     }));
 
     await sandbox.files.write(filesToWrite);
+    progressTracker?.completeStep('creating-sandbox');
 
     const buildErrors: BuildError[] = [];
 
     // Check if package.json was written and install only new dependencies
+    progressTracker?.startStep('installing-deps');
     const packageJsonFile = transformedFiles.find(file => file.path === 'package.json');
     if (packageJsonFile) {
         console.log('package.json detected, checking for new dependencies...');
@@ -81,8 +87,10 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
             });
         }
     }
+    progressTracker?.completeStep('installing-deps');
 
     // Start the dev server and check logs for errors (let Vite handle error detection)
+    progressTracker?.startStep('starting-server');
     try {
         console.log('Starting dev server...');
         // Start dev server in background
@@ -237,8 +245,10 @@ export async function createSandbox({ files }: { files: z.infer<typeof benchifyF
             message: `Dev server failed to start: ${error instanceof Error ? error.message : String(error)}`
         });
     }
+    progressTracker?.completeStep('starting-server');
 
     // Get all files from the sandbox using the improved filter logic
+    progressTracker?.startStep('finalizing-preview');
     const allFiles = await fetchAllSandboxFiles(sandbox);
 
     const previewUrl = `https://${sandbox.getHost(5173)}`;

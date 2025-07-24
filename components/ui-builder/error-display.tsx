@@ -33,9 +33,10 @@ interface ErrorDisplayProps {
     errors: BuildError[];
     currentFiles?: z.infer<typeof benchifyFileSchema>;
     onFixComplete?: (result: FixResult) => void;
+    sessionId?: string;
 }
 
-export function ErrorDisplay({ errors, currentFiles, onFixComplete }: ErrorDisplayProps) {
+export function ErrorDisplay({ errors, currentFiles, onFixComplete, sessionId }: ErrorDisplayProps) {
     const [isFixing, setIsFixing] = useState(false);
     const [isBenchifyFixing, setIsBenchifyFixing] = useState(false);
 
@@ -110,6 +111,7 @@ Please make the minimal changes necessary to resolve these errors while maintain
                 editInstruction: fixInstruction,
                 useBuggyCode,
                 useFixer,
+                sessionId: sessionId,
             });
 
             if ('error' in fixResult) {

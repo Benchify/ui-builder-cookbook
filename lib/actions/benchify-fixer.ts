@@ -3,6 +3,7 @@
 import { Benchify } from 'benchify';
 import { createSandbox } from '@/lib/e2b';
 import { FixerRunResponse } from 'benchify/resources/fixer.mjs';
+import { ProgressTracker } from '@/lib/progress-tracker';
 
 const benchify = new Benchify({
     apiKey: process.env.BENCHIFY_API_KEY,
@@ -10,6 +11,7 @@ const benchify = new Benchify({
 
 type BenchifyFixerInput = {
     files: Array<{ path: string; contents: string }>;
+    sessionId?: string;
 };
 
 export type BenchifyFixerResult = {
@@ -25,16 +27,44 @@ export type BenchifyFixerResult = {
         column?: number;
     }>;
     hasErrors?: boolean;
+    sessionId?: string;
 } | {
     error: string;
     message: string;
+    sessionId?: string;
 };
 
 export async function runBenchifyFixer(input: BenchifyFixerInput): Promise<BenchifyFixerResult> {
-    try {
-        const { files } = input;
+    const { files, sessionId } = input;
 
-        // Run the Benchify fixer
+    // Define the steps for the fixer process
+    const steps = [
+        {
+            id: 'running-fixer',
+            label: 'Running Benchify Fixer',
+            description: 'Analyzing and optimizing code for better performance and quality'
+        },
+        {
+            id: 'creating-sandbox',
+            label: 'Creating Sandbox',
+            description: 'Setting up development environment with optimized code'
+        },
+        {
+            id: 'deploying-preview',
+            label: 'Building Preview',
+            description: 'Compiling and deploying the optimized application'
+        }
+    ];
+
+    // Initialize progress tracker if sessionId is provided
+    let progressTracker: ProgressTracker | null = null;
+    if (sessionId) {
+        progressTracker = new ProgressTracker(sessionId, steps);
+    }
+
+    try {
+        // Step 1: Run the Benchify fixer
+        progressTracker?.startStep('running-fixer');
         const fixerResult = await benchify.fixer.run({
             files: files.map((file) => ({
                 path: file.path,
@@ -60,22 +90,43 @@ export async function runBenchifyFixer(input: BenchifyFixerInput): Promise<Bench
             repairedFiles = files;
         }
 
-        // Create sandbox with the repaired files
-        const sandboxResult = await createSandbox({ files: repairedFiles });
+        progressTracker?.completeStep('running-fixer');
+
+        // Step 2: Create sandbox with the repaired files
+        progressTracker?.startStep('creating-sandbox');
+        const sandboxResult = await createSandbox({ files: repairedFiles, progressTracker: null });
+        progressTracker?.completeStep('creating-sandbox');
+
+        // Step 3: Deploy preview
+        progressTracker?.startStep('deploying-preview');
+        progressTracker?.completeStep('deploying-preview');
 
         // Return the results in the same format as generate-app
         return {
             originalFiles: files,
-            repairedFiles: sandboxResult.allFiles, // Use the allFiles from the sandbox
+            repairedFiles: sandboxResult.allFiles,
             buildOutput: `Sandbox created with template: ${sandboxResult.template}, ID: ${sandboxResult.sbxId}`,
             previewUrl: sandboxResult.url,
             buildErrors: sandboxResult.buildErrors,
             hasErrors: sandboxResult.hasErrors,
+            sessionId,
         };
     } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Mark current step as failed if we have a progress tracker
+        if (progressTracker) {
+            const currentState = progressTracker.getState();
+            if (currentState && currentState.currentStepIndex >= 0) {
+                const currentStep = currentState.steps[currentState.currentStepIndex];
+                progressTracker.errorStep(currentStep.id, errorMessage);
+            }
+        }
+
         return {
             error: 'Failed to run Benchify fixer',
-            message: error instanceof Error ? error.message : String(error)
+            message: errorMessage,
+            sessionId
         };
     }
 } 

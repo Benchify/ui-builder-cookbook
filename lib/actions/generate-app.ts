@@ -3,6 +3,7 @@
 import { generateAppCode } from '@/lib/openai';
 import { createSandbox } from '@/lib/e2b';
 import { Benchify } from 'benchify';
+import { ProgressTracker } from '@/lib/progress-tracker';
 
 const benchify = new Benchify({
     apiKey: process.env.BENCHIFY_API_KEY,
@@ -17,6 +18,7 @@ type GenerateAppInput = {
     editInstruction?: string;
     useBuggyCode?: boolean;
     useFixer?: boolean;
+    sessionId?: string;
 };
 
 export type GenerateAppResult = {
@@ -33,25 +35,74 @@ export type GenerateAppResult = {
     }>;
     hasErrors?: boolean;
     editInstruction?: string;
+    sessionId?: string;
 } | {
     error: string;
     message: string;
+    sessionId?: string;
 };
 
 export async function generateApp(input: GenerateAppInput): Promise<GenerateAppResult> {
-    try {
-        const { description, existingFiles, editInstruction, useBuggyCode, useFixer } = input;
+    const { description, existingFiles, editInstruction, useBuggyCode, useFixer, sessionId } = input;
 
-        // Process the app request using centralized logic
+    // Define the actual steps that will happen
+    const steps = [
+        {
+            id: 'generating-code',
+            label: 'Generating Code',
+            description: 'Creating components and functionality with AI assistance'
+        },
+        ...(useFixer ? [{
+            id: 'fixing-code',
+            label: 'Optimizing Code',
+            description: 'Running Benchify fixer to optimize and fix potential issues'
+        }] : []),
+        {
+            id: 'creating-sandbox',
+            label: 'Creating Sandbox',
+            description: 'Setting up development environment'
+        },
+        {
+            id: 'installing-deps',
+            label: 'Installing Dependencies',
+            description: 'Installing required packages and dependencies'
+        },
+        {
+            id: 'starting-server',
+            label: 'Starting Dev Server',
+            description: 'Starting development server and running health checks'
+        },
+        {
+            id: 'finalizing-preview',
+            label: 'Finalizing Preview',
+            description: 'Preparing your application for preview'
+        }
+    ];
+
+    // Initialize progress tracker if sessionId is provided
+    let progressTracker: ProgressTracker | null = null;
+    if (sessionId) {
+        console.log('🔄 Creating progress tracker for session:', sessionId);
+        progressTracker = new ProgressTracker(sessionId, steps);
+        console.log('📊 Progress tracker created with steps:', steps.map(s => s.label));
+    } else {
+        console.log('⚠️ No sessionId provided, skipping progress tracking');
+    }
+
+    try {
+        // Step 1: Generate code
+        progressTracker?.startStep('generating-code');
         const filesToSandbox = await generateAppCode(description, existingFiles, editInstruction, useBuggyCode);
+        progressTracker?.completeStep('generating-code');
 
         let repairedFiles = filesToSandbox;
 
         console.log("Files to sandbox", filesToSandbox);
 
-        // Repair the generated code using Benchify's API if requested
+        // Step 2: Run fixer if requested
         if (useFixer) {
             try {
+                progressTracker?.startStep('fixing-code');
                 console.log("Trying fixer")
                 const fixerResult = await benchify.fixer.run({
                     files: filesToSandbox.map((file: { path: string; contents: string }) => ({
@@ -65,36 +116,54 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
 
                 const fixedFiles = (fixerResult as any).data?.suggested_changes?.all_files;
                 if (fixedFiles && Array.isArray(fixedFiles)) {
-                    // Use the fixer files directly since they already have the correct format
                     repairedFiles = fixedFiles;
                 }
 
                 console.log('🔧 Benchify fixer data:', repairedFiles);
+                progressTracker?.completeStep('fixing-code');
 
             } catch (error) {
-                // Continue with original files if fixer fails
                 console.error('Fixer failed:', error);
+                progressTracker?.errorStep('fixing-code', 'Fixer optimization failed, continuing with original code');
+                // Continue with original files if fixer fails
             }
         }
 
-        const sandboxResult = await createSandbox({ files: repairedFiles });
-
-        console.log("url", sandboxResult.url);
+        // Step 3: Create sandbox with progress tracking
+        progressTracker?.startStep('creating-sandbox');
+        const sandboxResult = await createSandbox({
+            files: repairedFiles,
+            progressTracker: progressTracker
+        });
+        progressTracker?.completeStep('finalizing-preview');
 
         // Return the results
         return {
             originalFiles: filesToSandbox,
-            repairedFiles: sandboxResult.allFiles, // Use the allFiles from the sandbox
+            repairedFiles: sandboxResult.allFiles,
             buildOutput: `Sandbox created with template: ${sandboxResult.template}, ID: ${sandboxResult.sbxId}`,
             previewUrl: sandboxResult.url,
             buildErrors: sandboxResult.buildErrors,
             hasErrors: sandboxResult.hasErrors,
+            sessionId,
             ...(editInstruction && { editInstruction }),
         };
     } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Mark current step as failed if we have a progress tracker
+        if (progressTracker) {
+            const currentState = progressTracker.getState();
+            if (currentState && currentState.currentStepIndex >= 0) {
+                const currentStep = currentState.steps[currentState.currentStepIndex];
+                progressTracker.errorStep(currentStep.id, errorMessage);
+            }
+        }
+
         return {
             error: 'Failed to generate app',
-            message: error instanceof Error ? error.message : String(error)
+            message: errorMessage,
+            sessionId
         };
     }
 } 
