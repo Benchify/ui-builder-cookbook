@@ -103,24 +103,35 @@ export async function createSandbox({ files, progressTracker }: {
         console.log('Stderr content:', devServerResult.stderr || 'No stderr');
         console.log('Stdout content:', devServerResult.stdout || 'No stdout');
 
-        // Give it a moment to start and potentially fail
-        console.log('Waiting 5 seconds for dev server to start...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        // Poll the dev server until it's ready or timeout
+        console.log('Polling dev server for readiness...');
+        const maxAttempts = 20; // 20 attempts with 500ms intervals = 10 seconds max
+        const pollInterval = 250; // 500ms between attempts
+        let isServerReady = false;
 
-        // Check if the dev server is actually running by trying to access it
         console.log('=== CHECKING IF DEV SERVER IS ACTUALLY RUNNING ===');
-        try {
-            const healthCheck = await sandbox.commands.run('curl -s -o /dev/null -w "%{http_code}" http://localhost:5173', { timeoutMs: 5000 });
-            console.log('Health check result:', healthCheck);
-            console.log('HTTP status code:', healthCheck.stdout);
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const healthCheck = await sandbox.commands.run('curl -s -o /dev/null -w "%{http_code}" http://localhost:5173', { timeoutMs: 3000 });
+                console.log(`Health check attempt ${attempt}/${maxAttempts}:`, healthCheck.stdout);
 
-            if (healthCheck.stdout === '200') {
-                console.log('✅ Dev server is running successfully despite permission errors!');
-            } else {
-                console.log('❌ Dev server is not responding properly');
+                if (healthCheck.stdout === '200') {
+                    console.log(`✅ Dev server is ready after ${(attempt - 1) * pollInterval + pollInterval}ms!`);
+                    isServerReady = true;
+                    break;
+                }
+            } catch (healthError) {
+                console.log(`Health check attempt ${attempt} failed:`, healthError);
             }
-        } catch (healthError) {
-            console.log('Health check failed:', healthError);
+
+            // Don't wait after the last attempt
+            if (attempt < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
+            }
+        }
+
+        if (!isServerReady) {
+            console.log('❌ Dev server did not become ready within timeout period');
         }
 
         // Check what processes are running
