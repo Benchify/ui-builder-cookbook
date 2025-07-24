@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertCircle, Code, FileX, Terminal, Wand2 } from 'lucide-react';
+import { AlertCircle, Code, FileX, Terminal, Wand2, Wrench } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { benchifyFileSchema } from '@/lib/schemas';
 import { z } from 'zod';
 import { generateApp } from '@/lib/actions/generate-app';
+import { runBenchifyFixer, type BenchifyFixerResult } from '@/lib/actions/benchify-fixer';
 
 interface BuildError {
     type: 'typescript' | 'build' | 'runtime';
@@ -36,6 +37,7 @@ interface ErrorDisplayProps {
 
 export function ErrorDisplay({ errors, currentFiles, onFixComplete }: ErrorDisplayProps) {
     const [isFixing, setIsFixing] = useState(false);
+    const [isBenchifyFixing, setIsBenchifyFixing] = useState(false);
 
     const getErrorIcon = (type: BuildError['type']) => {
         switch (type) {
@@ -127,40 +129,46 @@ Please make the minimal changes necessary to resolve these errors while maintain
         }
     };
 
+    const handleFixWithBenchify = async () => {
+        if (!currentFiles || errors.length === 0 || isBenchifyFixing) return;
+
+        setIsBenchifyFixing(true);
+
+        try {
+            // Run the Benchify fixer on current files
+            const fixResult = await runBenchifyFixer({
+                files: currentFiles,
+            });
+
+            if ('error' in fixResult) {
+                throw new Error(fixResult.message);
+            }
+
+            // Notify parent component of the fix result
+            if (onFixComplete) {
+                onFixComplete(fixResult);
+            }
+
+        } catch (error) {
+            console.error('Error fixing with Benchify:', error);
+            // Could add error toast here
+        } finally {
+            setIsBenchifyFixing(false);
+        }
+    };
+
     return (
         <div className="w-full h-full flex items-center justify-center rounded-md border bg-background p-6">
             <div className="w-full max-w-2xl">
                 <div className="text-center mb-6">
                     <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">Build Errors Detected</h3>
-                    <p className="text-muted-foreground text-sm mb-4">
+                    <p className="text-muted-foreground text-sm">
                         Your project has some issues that need to be fixed before it can run properly.
                     </p>
-
-                    {/* Fix with AI Button */}
-                    {currentFiles && (
-                        <Button
-                            onClick={handleFixWithAI}
-                            disabled={isFixing}
-                            className="mb-4"
-                            size="sm"
-                        >
-                            {isFixing ? (
-                                <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                                    Fixing with AI...
-                                </>
-                            ) : (
-                                <>
-                                    <Wand2 className="h-4 w-4 mr-2" />
-                                    Fix with AI
-                                </>
-                            )}
-                        </Button>
-                    )}
                 </div>
 
-                <ScrollArea className="max-h-96">
+                <ScrollArea className="max-h-96 mb-6">
                     <div className="space-y-4">
                         {Object.entries(groupedErrors).map(([type, typeErrors]) => (
                             <div key={type} className="space-y-2">
@@ -198,6 +206,50 @@ Please make the minimal changes necessary to resolve these errors while maintain
                         ))}
                     </div>
                 </ScrollArea>
+
+                {/* Fix Buttons - Moved below errors with improved styling */}
+                {currentFiles && (
+                    <div className="border-t pt-4">
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                            <Button
+                                onClick={handleFixWithAI}
+                                disabled={isFixing || isBenchifyFixing}
+                                className="flex-1 sm:flex-none"
+                            >
+                                {isFixing ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                                        Fixing with AI...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Wand2 className="h-4 w-4 mr-2" />
+                                        Fix with AI
+                                    </>
+                                )}
+                            </Button>
+
+                            <Button
+                                onClick={handleFixWithBenchify}
+                                disabled={isFixing || isBenchifyFixing}
+                                variant="outline"
+                                className="flex-1 sm:flex-none"
+                            >
+                                {isBenchifyFixing ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                                        Fixing with Benchify...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Wrench className="h-4 w-4 mr-2" />
+                                        Fix with Benchify
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
