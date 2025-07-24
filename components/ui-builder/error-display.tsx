@@ -166,6 +166,14 @@ ${errorDetails}
 
 Please make the minimal changes necessary to resolve these errors while maintaining existing functionality.`;
 
+            console.log('🔧 AI Fix - Debug Info:', {
+                errorsCount: errors.length,
+                currentFilesCount: currentFiles?.length || 0,
+                fixInstructionLength: fixInstruction.length,
+                sandboxId: sandboxId,
+                firstFile: currentFiles?.[0]?.path || 'none'
+            });
+
             // Get toggle values from sessionStorage
             const useBuggyCode = sessionStorage.getItem('useBuggyCode') === 'true';
             const useFixer = sessionStorage.getItem('useFixer') === 'true';

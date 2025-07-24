@@ -82,7 +82,7 @@ Rules:
 
 export function createEditUserPrompt(files: z.infer<typeof benchifyFileSchema>, editInstruction: string): string {
   const filesContent = files.map(file =>
-    `### ${file.path}\n\`\`\`\n${file.content}\n\`\`\``
+    `### ${file.path}\n\`\`\`\n${file.contents}\n\`\`\``
   ).join('\n\n');
 
   return `Here are the current files:
@@ -90,6 +90,8 @@ export function createEditUserPrompt(files: z.infer<typeof benchifyFileSchema>, 
 ${filesContent}
 
 Edit instruction: ${editInstruction}
+
+IMPORTANT: You must preserve the existing functionality and logic. Only fix the specific issues mentioned in the instruction. Do not rewrite or simplify the code unless explicitly asked to do so.
 
 Please update the code according to this instruction and return all files with their updated content.`;
 }
