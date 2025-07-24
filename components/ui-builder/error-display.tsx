@@ -1,15 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertCircle, Code, FileX, Terminal, Wand2, Wrench } from 'lucide-react';
+import { AlertCircle, Code, FileX, Terminal, Wand2, Wrench, CheckCircle, Circle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { benchifyFileSchema } from '@/lib/schemas';
 import { z } from 'zod';
 import { generateApp } from '@/lib/actions/generate-app';
 import { runBenchifyFixer } from '@/lib/actions/benchify-fixer';
+import { generateSessionId, ProgressStep } from '@/lib/progress-tracker';
+import { useProgress } from '@/lib/hooks/use-progress';
 
 interface BuildError {
     type: 'typescript' | 'build' | 'runtime';
@@ -39,6 +42,14 @@ interface ErrorDisplayProps {
 export function ErrorDisplay({ errors, currentFiles, onFixComplete, sessionId }: ErrorDisplayProps) {
     const [isFixing, setIsFixing] = useState(false);
     const [isBenchifyFixing, setIsBenchifyFixing] = useState(false);
+    const [fixSessionId, setFixSessionId] = useState<string | null>(null);
+    const [benchifyFixSessionId, setBenchifyFixSessionId] = useState<string | null>(null);
+
+    // Progress tracking for AI fix
+    const { progress: aiFixProgress, isConnected: aiFixConnected } = useProgress(fixSessionId);
+
+    // Progress tracking for Benchify fix  
+    const { progress: benchifyProgress, isConnected: benchifyConnected } = useProgress(benchifyFixSessionId);
 
     const getErrorIcon = (type: BuildError['type']) => {
         switch (type) {
@@ -74,10 +85,66 @@ export function ErrorDisplay({ errors, currentFiles, onFixComplete, sessionId }:
         return acc;
     }, {} as Record<string, BuildError[]>);
 
+    // Helper function to render progress steps
+    const renderProgressSteps = (steps: ProgressStep[], title: string) => (
+        <Card className="w-full max-w-md mx-auto">
+            <CardHeader>
+                <CardTitle>{title}</CardTitle>
+                <p className="text-sm text-muted-foreground mt-2">
+                    Analyzing and fixing the detected errors
+                </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {steps.map((step: ProgressStep) => {
+                    const isCompleted = step.status === 'completed';
+                    const isCurrent = step.status === 'in-progress';
+                    const hasError = step.status === 'error';
+
+                    return (
+                        <div key={step.id} className="flex items-start space-x-3">
+                            <div className="flex-shrink-0 mt-1">
+                                {hasError ? (
+                                    <AlertCircle className="h-5 w-5 text-red-500" />
+                                ) : isCompleted ? (
+                                    <CheckCircle className="h-5 w-5 text-green-500" />
+                                ) : isCurrent ? (
+                                    <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                                ) : (
+                                    <Circle className="h-5 w-5 text-muted-foreground" />
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium ${hasError ? 'text-red-700 dark:text-red-400' :
+                                    isCompleted ? 'text-green-700 dark:text-green-400' :
+                                        isCurrent ? 'text-primary' :
+                                            'text-muted-foreground'
+                                    }`}>
+                                    {step.label}
+                                </p>
+                                <p className={`text-xs ${hasError ? 'text-red-600 dark:text-red-500' :
+                                    isCompleted || isCurrent ? 'text-muted-foreground' : 'text-muted-foreground/60'
+                                    }`}>
+                                    {hasError && step.error ? step.error : step.description}
+                                </p>
+                                {step.startTime && step.endTime && (
+                                    <p className="text-xs text-muted-foreground/50 mt-1">
+                                        Completed in {((step.endTime - step.startTime) / 1000).toFixed(1)}s
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </CardContent>
+        </Card>
+    );
+
     const handleFixWithAI = async () => {
         if (!currentFiles || errors.length === 0 || isFixing) return;
 
         setIsFixing(true);
+        const newSessionId = generateSessionId();
+        setFixSessionId(newSessionId);
 
         try {
             // Format errors into an edit instruction
@@ -111,7 +178,7 @@ Please make the minimal changes necessary to resolve these errors while maintain
                 editInstruction: fixInstruction,
                 useBuggyCode,
                 useFixer,
-                sessionId: sessionId,
+                sessionId: newSessionId,
             });
 
             if ('error' in fixResult) {
@@ -128,6 +195,7 @@ Please make the minimal changes necessary to resolve these errors while maintain
             // Could add error toast here
         } finally {
             setIsFixing(false);
+            setFixSessionId(null);
         }
     };
 
@@ -135,11 +203,14 @@ Please make the minimal changes necessary to resolve these errors while maintain
         if (!currentFiles || errors.length === 0 || isBenchifyFixing) return;
 
         setIsBenchifyFixing(true);
+        const newSessionId = generateSessionId();
+        setBenchifyFixSessionId(newSessionId);
 
         try {
             // Run the Benchify fixer on current files
             const fixResult = await runBenchifyFixer({
                 files: currentFiles,
+                sessionId: newSessionId,
             });
 
             if ('error' in fixResult) {
@@ -156,8 +227,26 @@ Please make the minimal changes necessary to resolve these errors while maintain
             // Could add error toast here
         } finally {
             setIsBenchifyFixing(false);
+            setBenchifyFixSessionId(null);
         }
     };
+
+    // Show progress tracking if any fix is running
+    if (isFixing && aiFixProgress?.steps && aiFixProgress.steps.length > 0) {
+        return (
+            <div className="w-full h-full flex items-center justify-center rounded-md border bg-background p-6">
+                {renderProgressSteps(aiFixProgress.steps, "Fixing with AI")}
+            </div>
+        );
+    }
+
+    if (isBenchifyFixing && benchifyProgress?.steps && benchifyProgress.steps.length > 0) {
+        return (
+            <div className="w-full h-full flex items-center justify-center rounded-md border bg-background p-6">
+                {renderProgressSteps(benchifyProgress.steps, "Fixing with Benchify")}
+            </div>
+        );
+    }
 
     return (
         <div className="w-full h-full flex items-center justify-center rounded-md border bg-background p-6">
