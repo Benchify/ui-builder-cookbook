@@ -1,7 +1,7 @@
 'use server';
 
 import { Benchify } from 'benchify';
-import { createSandbox } from '@/lib/e2b';
+import { createSandbox, updateSandboxFiles } from '@/lib/e2b';
 import { FixerRunResponse } from 'benchify/resources/fixer.mjs';
 import { ProgressTracker } from '@/lib/progress-tracker';
 
@@ -12,6 +12,7 @@ const benchify = new Benchify({
 type BenchifyFixerInput = {
     files: Array<{ path: string; contents: string }>;
     sessionId?: string;
+    existingSandboxId?: string; // Optional: reuse existing sandbox instead of creating new one
 };
 
 export type BenchifyFixerResult = {
@@ -19,6 +20,7 @@ export type BenchifyFixerResult = {
     repairedFiles: Array<{ path: string; contents: string }>;
     buildOutput: string;
     previewUrl: string;
+    sandboxId: string; // Add sandbox ID so it can be reused
     buildErrors?: Array<{
         type: 'typescript' | 'build' | 'runtime';
         message: string;
@@ -35,10 +37,41 @@ export type BenchifyFixerResult = {
 };
 
 export async function runBenchifyFixer(input: BenchifyFixerInput): Promise<BenchifyFixerResult> {
-    const { files, sessionId } = input;
+    const { files, sessionId, existingSandboxId } = input;
 
-    // Define the steps for the fixer process
-    const steps = [
+    // Define the steps for the fixer process (different steps for new vs existing sandbox)
+    const steps = existingSandboxId ? [
+        {
+            id: 'running-fixer',
+            label: 'Running Benchify Fixer',
+            description: 'Analyzing and optimizing code for better performance and quality'
+        },
+        {
+            id: 'updating-files',
+            label: 'Updating Files',
+            description: 'Applying optimized code to your existing sandbox'
+        },
+        {
+            id: 'installing-deps',
+            label: 'Installing Dependencies',
+            description: 'Installing any new required packages'
+        },
+        {
+            id: 'hot-reloading',
+            label: 'Hot Reloading',
+            description: 'Applying changes with hot reload for instant updates'
+        },
+        {
+            id: 'verifying-update',
+            label: 'Verifying Update',
+            description: 'Ensuring the optimized code is working correctly'
+        },
+        {
+            id: 'finalizing-preview',
+            label: 'Finalizing',
+            description: 'Your optimized application is ready!'
+        }
+    ] : [
         {
             id: 'running-fixer',
             label: 'Running Benchify Fixer',
@@ -102,16 +135,32 @@ export async function runBenchifyFixer(input: BenchifyFixerInput): Promise<Bench
 
         progressTracker?.completeStep('running-fixer');
 
-        // Step 2-5: Create sandbox with detailed progress tracking
-        progressTracker?.startStep('creating-sandbox');
-        const sandboxResult = await createSandbox({ files: repairedFiles, progressTracker: progressTracker });
+        // Step 2-5: Create or update sandbox with detailed progress tracking
+        let sandboxResult;
+        if (existingSandboxId) {
+            // Update existing sandbox with optimized files
+            console.log(`🔄 Updating existing sandbox: ${existingSandboxId}`);
+            sandboxResult = await updateSandboxFiles({
+                sandboxId: existingSandboxId,
+                files: repairedFiles,
+                progressTracker: progressTracker
+            });
+        } else {
+            // Create new sandbox
+            console.log('🆕 Creating new sandbox');
+            progressTracker?.startStep('creating-sandbox');
+            sandboxResult = await createSandbox({ files: repairedFiles, progressTracker: progressTracker });
+        }
 
         // Return the results in the same format as generate-app
         return {
             originalFiles: files,
             repairedFiles: sandboxResult.allFiles,
-            buildOutput: `Sandbox created with template: ${sandboxResult.template}, ID: ${sandboxResult.sbxId}`,
+            buildOutput: existingSandboxId
+                ? `Sandbox updated with optimized code, ID: ${sandboxResult.sbxId}`
+                : `Sandbox created with template: ${sandboxResult.template}, ID: ${sandboxResult.sbxId}`,
             previewUrl: sandboxResult.url,
+            sandboxId: sandboxResult.sbxId,
             buildErrors: sandboxResult.buildErrors,
             hasErrors: sandboxResult.hasErrors,
             sessionId,

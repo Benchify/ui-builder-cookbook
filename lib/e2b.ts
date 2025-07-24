@@ -28,6 +28,103 @@ interface SandboxResult {
     hasErrors: boolean;
 }
 
+export async function updateSandboxFiles({
+    sandboxId,
+    files,
+    progressTracker
+}: {
+    sandboxId: string;
+    files: z.infer<typeof benchifyFileSchema>;
+    progressTracker?: ProgressTracker | null;
+}): Promise<SandboxResult> {
+    console.log(`Updating existing sandbox: ${sandboxId}`);
+
+    // Connect to existing running sandbox
+    const sandbox = await Sandbox.connect(sandboxId);
+
+    // Apply transformations (including Tailwind v4 syntax)
+    const transformedFiles = applyTransformations(files);
+
+    // Write files directly to the working directory (/app), replacing existing ones
+    const filesToWrite = transformedFiles.map(file => ({
+        path: `/app/${file.path}`,
+        data: file.contents
+    }));
+
+    progressTracker?.startStep('updating-files');
+    await sandbox.files.write(filesToWrite);
+    progressTracker?.completeStep('updating-files');
+
+    // Check if package.json was updated and install any new dependencies
+    progressTracker?.startStep('installing-deps');
+    const packageJsonFile = transformedFiles.find(file => file.path === 'package.json');
+    if (packageJsonFile) {
+        console.log('package.json updated, checking for new dependencies...');
+        try {
+            const newPackages = extractNewPackages(packageJsonFile.contents);
+
+            if (newPackages.length > 0) {
+                console.log('Installing new packages:', newPackages);
+                const installCmd = `cd /app && npm install ${newPackages.join(' ')} --no-save`;
+                const result = await sandbox.commands.run(installCmd);
+                console.log('New packages installed successfully:', result.stdout);
+            } else {
+                console.log('No new packages to install');
+            }
+        } catch (error) {
+            console.error('Failed to install new packages:', error);
+        }
+    }
+    progressTracker?.completeStep('installing-deps');
+
+    // Wait for hot reload to take effect
+    progressTracker?.startStep('hot-reloading');
+    console.log('Waiting for hot reload to take effect...');
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Brief wait for hot reload
+    progressTracker?.completeStep('hot-reloading');
+
+    // Quick health check to ensure the updated app is working
+    progressTracker?.startStep('verifying-update');
+    const maxAttempts = 10; // Shorter timeout since server should already be running
+    const pollInterval = 500;
+    let isServerReady = false;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const healthCheck = await sandbox.commands.run('curl -s -o /dev/null -w "%{http_code}" http://localhost:5173', { timeoutMs: 3000 });
+
+            if (healthCheck.stdout === '200') {
+                console.log(`✅ Updated app is ready after ${attempt * pollInterval}ms!`);
+                isServerReady = true;
+                break;
+            }
+        } catch (healthError) {
+            console.log(`Health check attempt ${attempt} failed:`, healthError);
+        }
+
+        if (attempt < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+    }
+    progressTracker?.completeStep('verifying-update');
+
+    // Get all files from the sandbox
+    progressTracker?.startStep('finalizing-preview');
+    const allFiles = await fetchAllSandboxFiles(sandbox);
+    progressTracker?.completeStep('finalizing-preview');
+
+    const previewUrl = `https://${sandbox.getHost(5173)}`;
+
+    return {
+        sbxId: sandbox.sandboxId,
+        template: 'vite-support',
+        url: previewUrl,
+        allFiles: allFiles,
+        buildErrors: undefined, // Assume no build errors for hot reload updates
+        hasErrors: !isServerReady
+    };
+}
+
 export async function createSandbox({ files, progressTracker }: {
     files: z.infer<typeof benchifyFileSchema>;
     progressTracker?: ProgressTracker | null;

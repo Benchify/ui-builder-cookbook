@@ -8,7 +8,7 @@ import { generateApp, GenerateAppResult } from '@/lib/actions/generate-app';
 import { generateSessionId } from '@/lib/progress-tracker';
 
 // Extract the success type from the union
-type GenerationResult = Extract<GenerateAppResult, { buildOutput: string }>;
+type GenerationResult = Extract<GenerateAppResult, { buildOutput: string }> & { sandboxId?: string };
 
 export default function ChatPage() {
     const router = useRouter();
@@ -149,6 +149,7 @@ export default function ChatPage() {
                     hasErrors={result?.hasErrors}
                     onFixComplete={handleUpdateResult}
                     sessionId={sessionId || undefined}
+                    sandboxId={result?.sandboxId}
                 />
             </div>
         </div>
