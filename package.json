@@ -21,7 +21,7 @@
     "@radix-ui/react-tabs": "^1.1.11",
     "@types/react-syntax-highlighter": "^15.5.13",
     "ai": "^4.3.15",
-    "benchify": "^0.1.0-alpha.18",
+    "benchify": "^0.1.0-alpha.22",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "diff": "^8.0.1",

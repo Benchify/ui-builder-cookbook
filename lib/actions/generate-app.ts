@@ -142,20 +142,11 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
             try {
                 progressTracker?.startStep('fixing-code');
                 console.log("Trying fixer")
-                const fixerResult = await benchify.fixer.run({
-                    files: filesToSandbox.map((file: { path: string; contents: string }) => ({
-                        path: file.path,
-                        contents: file.contents
-                    })),
+                const repairedFiles = await benchify.runFixer(filesToSandbox, {
                     fixes: {
                         stringLiterals: true,
                     }
                 });
-
-                const fixedFiles = (fixerResult as any).data?.suggested_changes?.all_files;
-                if (fixedFiles && Array.isArray(fixedFiles)) {
-                    repairedFiles = fixedFiles;
-                }
 
                 console.log('🔧 Benchify fixer data:', repairedFiles);
                 progressTracker?.completeStep('fixing-code');
