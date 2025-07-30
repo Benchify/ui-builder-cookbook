@@ -1,0 +1,1003 @@
+import React, { useState, useRef, useEffect } from "react";
+import {
+    Search as SearchIcon,
+    Edit as EditIcon,
+    Image as ImageIcon,
+    Paperclip as PaperclipIcon,
+    Send as SendIcon,
+    Phone as PhoneIcon,
+    Video as VideoIcon,
+    Info as InfoIcon,
+    Star as StarIcon,
+    MoreVertical as MoreVerticalIcon,
+    Users as UsersIcon,
+    Plus as PlusIcon,
+    X as XIcon,
+    Check as CheckIcon,
+    CheckCheck as CheckCheckIcon,
+    Mic as MicIcon,
+} from "lucide-react";
+
+function App() {
+    const [activeConversation, setActiveConversation] = useState<number | null>(
+        1
+    ); // Default to first conversation
+    const [searchQuery, setSearchQuery] = useState("");
+    const [messageText, setMessageText] = useState("");
+    const [showContactInfo, setShowContactInfo] = useState(false);
+    const [showNewMessageModal, setShowNewMessageModal] = useState(false);
+    const [newMessageSearch, setNewMessageSearch] = useState("");
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const [recordingInterval, setRecordingInterval] =
+        useState<NodeJS.Timeout | null>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [activeConversation]);
+    useEffect(() => {
+        if (isRecording) {
+            const interval = setInterval(() => {
+                setRecordingTime((prev) => prev + 1);
+            }, 1000);
+            setRecordingInterval(interval);
+            return () => clearInterval(interval);
+        } else if (recordingInterval) {
+            clearInterval(recordingInterval);
+            setRecordingInterval(null);
+            setRecordingTime(0);
+        }
+    }, [isRecording]);
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+    const conversations = [
+        {
+            id: 1,
+            contact: {
+                id: 101,
+                name: "Sarah Johnson",
+                avatar:
+                    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+                title: "UX Designer at Design Co",
+                email: "sarah.johnson@example.com",
+                phone: "+1 (555) 123-4567",
+                location: "San Francisco, CA",
+                status: "online",
+            },
+            lastMessage: {
+                text: "I just sent you the updated wireframes for the dashboard project. Let me know what you think!",
+                time: "10:32 AM",
+                isRead: true,
+                isFromMe: false,
+            },
+            unreadCount: 0,
+            messages: [
+                {
+                    id: 1,
+                    text: "Hi Sarah, I wanted to discuss the new project with you.",
+                    time: "Yesterday, 2:30 PM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 2,
+                    text: "Hey Tom, sure I'd love to hear more about it. What's the project about?",
+                    time: "Yesterday, 2:45 PM",
+                    isFromMe: false,
+                },
+                {
+                    id: 3,
+                    text: "We're redesigning the dashboard for our analytics platform. Think your UX expertise would be really valuable.",
+                    time: "Yesterday, 3:00 PM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 4,
+                    text: "That sounds interesting! I've worked on similar projects before. Do you need this completed?",
+                    time: "Yesterday, 3:15 PM",
+                    isFromMe: false,
+                },
+                {
+                    id: 5,
+                    text: "We're looking at a timeline of about three weeks. I can share the brief with you if you're interested.",
+                    time: "Yesterday, 3:30 PM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 6,
+                    text: "Yes, please share the brief. I'd like to review it and see if I can help.",
+                    time: "Yesterday, 4:00 PM",
+                    isFromMe: false,
+                },
+                {
+                    id: 7,
+                    text: "I just sent you the updated wireframes for the dashboard project. Let me know what you think!",
+                    time: "10:32 AM",
+                    isFromMe: false,
+                },
+            ],
+        },
+        {
+            id: 2,
+            contact: {
+                id: 102,
+                name: "Michael Chen",
+                avatar:
+                    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+                title: "Product Manager at TechGrowth",
+                email: "michael.chen@example.com",
+                phone: "+1 (555) 987-6543",
+                location: "New York, NY",
+                status: "offline",
+            },
+            lastMessage: {
+                text: "Can we schedule a meeting to discuss the product roadmap?",
+                time: "Yesterday",
+                isRead: false,
+                isFromMe: false,
+            },
+            unreadCount: 2,
+            messages: [
+                {
+                    id: 1,
+                    text: "Hi Michael, how's the product roadmap coming along?",
+                    time: "2 days ago, 10:00 AM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 2,
+                    text: "It's coming along well - we've identified the key features for the next quarter.",
+                    time: "2 days ago, 10:30 AM",
+                    isFromMe: false,
+                },
+                {
+                    id: 3,
+                    text: "That's great to hear. Do you have a document I can review?",
+                    time: "2 days ago, 11:00 AM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 4,
+                    text: "I'm still finalizing it, but I can share a draft with you by tomorrow.",
+                    time: "2 days ago, 11:15 AM",
+                    isFromMe: false,
+                },
+                {
+                    id: 5,
+                    text: "Thanks, that would be helpful. Any major changes from our previous discussion?",
+                    time: "Yesterday, 9:00 AM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 6,
+                    text: "We've reprioritized a few items based on user feedback, and we think you'll find the changes align well with our goals.",
+                    time: "Yesterday, 9:30 AM",
+                    isFromMe: false,
+                },
+                {
+                    id: 7,
+                    text: "Can we schedule a meeting to discuss the product roadmap?",
+                    time: "Yesterday, 4:45 PM",
+                    isFromMe: false,
+                },
+                {
+                    id: 8,
+                    text: "I'd like to get your input on some of the new features we're considering.",
+                    time: "Yesterday, 4:46 PM",
+                    isFromMe: false,
+                },
+            ],
+        },
+        {
+            id: 3,
+            contact: {
+                id: 103,
+                name: "Aisha Patel",
+                avatar:
+                    "https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+                title: "Frontend Developer at WebSolutions",
+                email: "aisha.patel@example.com",
+                phone: "+1 (555) 456-7890",
+                location: "Chicago, IL",
+                status: "online",
+            },
+            lastMessage: {
+                text: "I fixed that bug you mentioned in the navigation component.",
+                time: "Monday",
+                isRead: true,
+                isFromMe: false,
+            },
+            unreadCount: 0,
+            messages: [
+                {
+                    id: 1,
+                    text: "Hi Aisha, I noticed a bug in the navigation component on the homepage.",
+                    time: "Monday, 9:00 AM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 2,
+                    text: "Can you describe the issue? Is it happening on a specific browser?",
+                    time: "Monday, 9:15 AM",
+                    isFromMe: false,
+                },
+                {
+                    id: 3,
+                    text: "The dropdown menu doesn't close when clicking outside of it, which happens in Chrome and Firefox.",
+                    time: "Monday, 9:30 AM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 4,
+                    text: "I'll take a look at it right away. I think I know what might be causing it.",
+                    time: "Monday, 9:45 AM",
+                    isFromMe: false,
+                },
+                {
+                    id: 5,
+                    text: "Thanks, Aisha. Let me know if you need any more information.",
+                    time: "Monday, 10:00 AM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 6,
+                    text: "I fixed that bug you mentioned in the navigation component.",
+                    time: "Monday, 2:30 PM",
+                    isFromMe: false,
+                },
+            ],
+        },
+        {
+            id: 4,
+            contact: {
+                id: 104,
+                name: "David Wilson",
+                avatar:
+                    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+                title: "Marketing Director at GrowthHackers",
+                email: "david.wilson@example.com",
+                phone: "+1 (555) 789-0123",
+                location: "Austin, TX",
+                status: "away",
+            },
+            lastMessage: {
+                text: "The campaign results are in! We saw a 25% increase in conversions.",
+                time: "Sunday",
+                isRead: true,
+                isFromMe: false,
+            },
+            unreadCount: 0,
+            messages: [
+                {
+                    id: 1,
+                    text: "David, how is our marketing campaign progressing?",
+                    time: "Last Friday, 11:00 AM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 2,
+                    text: "It's going really well. We've already reached 80% of our target audience.",
+                    time: "Last Friday, 11:30 AM",
+                    isFromMe: false,
+                },
+                {
+                    id: 3,
+                    text: "That's impressive! How about the engagement metrics?",
+                    time: "Last Friday, 12:00 PM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 4,
+                    text: "Engagement is up by 15% compared to our previous campaign. The new creative assets are performing exceptionally well.",
+                    time: "Last Friday, 12:30 PM",
+                    isFromMe: false,
+                },
+                {
+                    id: 5,
+                    text: "Great work! When do you expect to have the final results?",
+                    time: "Last Friday, 1:00 PM",
+                    isFromMe: true,
+                    status: "read",
+                },
+                {
+                    id: 6,
+                    text: "I should have the complete analysis by Sunday evening.",
+                    time: "Last Friday, 1:15 PM",
+                    isFromMe: false,
+                },
+                {
+                    id: 7,
+                    text: "The campaign results are in! We saw a 25% increase in conversions.",
+                    time: "Sunday, 7:30 PM",
+                    isFromMe: false,
+                },
+            ],
+        },
+        {
+            id: 5,
+            contact: {
+                id: 105,
+                name: "UX Research Group",
+                avatar: "",
+                members: ["Sarah Johnson", "Tom Cook", "Aisha Patel", "Alex Rodriguez"],
+                type: "group",
+            },
+            lastMessage: {
+                text: "I'll prepare the research plan for next week's user testing sessions.",
+                time: "Aug 15",
+                isRead: true,
+                isFromMe: false,
+            },
+            unreadCount: 0,
+            messages: [
+                {
+                    id: 1,
+                    text: "I've created this group for our upcoming UX research project.",
+                    time: "Aug 14, 10:00 AM",
+                    isFromMe: true,
+                    status: "read",
+                    sender: "Tom Cook",
+                },
+                {
+                    id: 2,
+                    text: "Great idea! This will make coordination much easier.",
+                    time: "Aug 14, 10:15 AM",
+                    isFromMe: false,
+                    sender: "Sarah Johnson",
+                },
+                {
+                    id: 3,
+                    text: "I agree. When are we planning to start the user testing?",
+                    time: "Aug 14, 10:30 AM",
+                    isFromMe: false,
+                    sender: "Aisha Patel",
+                },
+                {
+                    id: 4,
+                    text: "I was thinking next week, if everyone is available.",
+                    time: "Aug 14, 10:45 AM",
+                    isFromMe: true,
+                    status: "read",
+                    sender: "Tom Cook",
+                },
+                {
+                    id: 5,
+                    text: "Next week works for me. What user segments are we focusing on?",
+                    time: "Aug 14, 11:00 AM",
+                    isFromMe: false,
+                    sender: "Alex Rodriguez",
+                },
+                {
+                    id: 6,
+                    text: "We'll be focusing on power users and new users to get a balanced perspective.",
+                    time: "Aug 14, 11:15 AM",
+                    isFromMe: true,
+                    status: "read",
+                    sender: "Tom Cook",
+                },
+                {
+                    id: 7,
+                    text: "That makes sense. I can help with recruiting participants.",
+                    time: "Aug 14, 11:30 AM",
+                    isFromMe: false,
+                    sender: "Sarah Johnson",
+                },
+                {
+                    id: 8,
+                    text: "I'll prepare the research plan for next week's user testing sessions.",
+                    time: "Aug 15, 9:00 AM",
+                    isFromMe: false,
+                    sender: "Alex Rodriguez",
+                },
+            ],
+        },
+    ];
+    const contacts = [
+        {
+            id: 101,
+            name: "Sarah Johnson",
+            avatar:
+                "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+            title: "UX Designer at Design Co",
+        },
+        {
+            id: 102,
+            name: "Michael Chen",
+            avatar:
+                "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+            title: "Product Manager at TechGrowth",
+        },
+        {
+            id: 103,
+            name: "Aisha Patel",
+            avatar:
+                "https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+            title: "Frontend Developer at WebSolutions",
+        },
+        {
+            id: 104,
+            name: "David Wilson",
+            avatar:
+                "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+            title: "Marketing Director at GrowthHackers",
+        },
+        {
+            id: 106,
+            name: "Emily Rodriguez",
+            avatar:
+                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+            title: "Data Scientist at AnalyticsPro",
+        },
+        {
+            id: 107,
+            name: "James Smith",
+            avatar:
+                "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+            title: "Backend Developer at TechSolutions",
+        },
+        {
+            id: 108,
+            name: "Olivia Kim",
+            avatar:
+                "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+            title: "UI Designer at CreativeStudio",
+        },
+    ];
+    const filteredConversations = conversations.filter((conversation) => {
+        const contactName = conversation.contact.name || "";
+        return contactName.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+    const filteredContacts = contacts.filter((contact) => {
+        return contact.name.toLowerCase().includes(newMessageSearch.toLowerCase());
+    });
+    const activeConversationData = conversations.find(
+        (conv) => conv.id === activeConversation
+    );
+    const handleSendMessage = () => {
+        if (!messageText.trim() && !isRecording) return;
+        if (isRecording) {
+            setIsRecording(false);
+        }
+        setMessageText("");
+        scrollToBottom();
+    };
+    const startNewConversation = (contactId: number) => {
+        // In a real app, we would create a new conversation with this contact
+        // For now, just close the modal and show a notification
+        setShowNewMessageModal(false);
+    };
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs < 10 ? "0" + secs : secs}`;
+    };
+
+    return (
+        <div className="h-screen bg-slate-50 dark:bg-slate-900">
+            <div className="h-full flex flex-col max-w-full">
+                <div className="flex-1 bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div className="flex h-full">
+                        {/* Conversation list */}
+                        <div
+                            className="hidden md:flex md:w-80 lg:w-72 xl:w-80 flex-col border-r border-slate-200/50 dark:border-slate-700/50"
+                        >
+                            <div className="p-4 border-b border-slate-200/50 dark:border-slate-700/50 flex justify-between items-center flex-shrink-0">
+                                <div className="relative w-full mr-2">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <SearchIcon className="h-4 w-4 text-slate-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        className="block w-full pl-10 pr-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg leading-5 bg-slate-50 dark:bg-slate-700/50 placeholder-slate-500 dark:placeholder-slate-400 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-sm transition-all duration-200"
+                                        placeholder="Search conversations"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => setShowNewMessageModal(true)}
+                                    className="p-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
+                                    aria-label="New message"
+                                >
+                                    <EditIcon className="h-4 w-4" />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto">
+                                {filteredConversations.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <SearchIcon className="h-8 w-8 text-slate-400" />
+                                        </div>
+                                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
+                                            No conversations found
+                                        </p>
+                                    </div>
+                                ) : (
+                                    filteredConversations.map((conversation) => (
+                                        <div
+                                            key={conversation.id}
+                                            className={`p-4 m-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-all duration-200 ${activeConversation === conversation.id ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50" : ""}`}
+                                            onClick={() => {
+                                                setActiveConversation(conversation.id);
+                                                setShowContactInfo(false);
+                                            }}
+                                        >
+                                            <div className="flex items-start">
+                                                <div className="relative">
+                                                    {conversation.contact.avatar ? (
+                                                        <img
+                                                            src={conversation.contact.avatar}
+                                                            alt={conversation.contact.name}
+                                                            className="h-12 w-12 rounded-full object-cover ring-2 ring-white dark:ring-slate-700"
+                                                        />
+                                                    ) : (
+                                                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold ring-2 ring-white dark:ring-slate-700">
+                                                            {conversation.contact.name.charAt(0)}
+                                                        </div>
+                                                    )}
+                                                    {conversation.contact.status === "online" && (
+                                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-slate-700 rounded-full"></div>
+                                                    )}
+                                                    {conversation.contact.status === "away" && (
+                                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-yellow-500 border-2 border-white dark:border-slate-700 rounded-full"></div>
+                                                    )}
+                                                </div>
+                                                <div className="ml-4 flex-1 min-w-0">
+                                                    <div className="flex justify-between items-baseline">
+                                                        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                                            {conversation.contact.name}
+                                                        </h3>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap ml-2">
+                                                            {conversation.lastMessage.time}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex justify-between items-center mt-1">
+                                                        <p className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">
+                                                            {conversation.lastMessage.isFromMe && (
+                                                                <span className="text-slate-500">You: </span>
+                                                            )}
+                                                            {conversation.lastMessage.text}
+                                                        </p>
+                                                        {conversation.unreadCount > 0 && (
+                                                            <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-blue-600 rounded-full min-w-[20px] h-5">
+                                                                {conversation.unreadCount}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                        {/* Active conversation */}
+                        {activeConversation ? (
+                            <div className="flex-1 flex flex-col min-w-0">
+                                {activeConversationData && (
+                                    <>
+                                        {/* Conversation header */}
+                                        <div className="p-4 border-b border-slate-200/50 dark:border-slate-700/50 flex justify-between items-center bg-white dark:bg-slate-800 flex-shrink-0">
+                                            <div className="flex items-center">
+                                                <div className="relative">
+                                                    {activeConversationData.contact.avatar ? (
+                                                        <img
+                                                            src={activeConversationData.contact.avatar}
+                                                            alt={activeConversationData.contact.name}
+                                                            className="h-12 w-12 rounded-full object-cover ring-2 ring-white dark:ring-slate-700"
+                                                        />
+                                                    ) : (
+                                                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold ring-2 ring-white dark:ring-slate-700">
+                                                            {activeConversationData.contact.name.charAt(0)}
+                                                        </div>
+                                                    )}
+                                                    {activeConversationData.contact.status === "online" && (
+                                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-slate-700 rounded-full"></div>
+                                                    )}
+                                                </div>
+                                                <div className="ml-4">
+                                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                                                        {activeConversationData.contact.name}
+                                                    </h3>
+                                                    {activeConversationData.contact.type === "group" ? (
+                                                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                            {activeConversationData.contact.members?.length} members
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                            {activeConversationData.contact.status === "online"
+                                                                ? "Active now"
+                                                                : activeConversationData.contact.status === "away"
+                                                                    ? "Away"
+                                                                    : "Offline"}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <button className="p-3 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all duration-200">
+                                                    <PhoneIcon className="h-5 w-5" />
+                                                </button>
+                                                <button className="p-3 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all duration-200">
+                                                    <VideoIcon className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    className={`p-3 rounded-xl transition-all duration-200 ${showContactInfo ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20" : "text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"}`}
+                                                    onClick={() => setShowContactInfo(!showContactInfo)}
+                                                >
+                                                    <InfoIcon className="h-5 w-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {/* Messages */}
+                                        <div className="flex-1 p-4 overflow-y-auto bg-slate-50 dark:bg-slate-900 min-h-0">
+                                            <div className="space-y-6">
+                                                {activeConversationData.messages.map((message) => (
+                                                    <div
+                                                        key={message.id}
+                                                        className={`flex ${message.isFromMe ? "justify-end" : "justify-start"}`}
+                                                    >
+                                                        {!message.isFromMe &&
+                                                            activeConversationData.contact.type === "group" &&
+                                                            "sender" in message && message.sender && (
+                                                                <div className="flex-shrink-0 mr-3">
+                                                                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                                                                        {message.sender.charAt(0)}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        <div
+                                                            className={`max-w-[70%] rounded-xl px-4 py-2 ${message.isFromMe
+                                                                ? "bg-blue-600 text-white shadow-sm"
+                                                                : "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm border border-slate-200 dark:border-slate-600"
+                                                                }`}
+                                                        >
+                                                            {activeConversationData.contact.type === "group" &&
+                                                                "sender" in message && message.sender &&
+                                                                !message.isFromMe && (
+                                                                    <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-2">
+                                                                        {message.sender}
+                                                                    </p>
+                                                                )}
+                                                            <p className="text-sm">{message.text}</p>
+                                                            <div
+                                                                className={`text-xs mt-1 flex items-center justify-end ${message.isFromMe ? "text-blue-200" : "text-slate-500 dark:text-slate-400"}`}
+                                                            >
+                                                                <span>{message.time}</span>
+                                                                {message.isFromMe && message.status && (
+                                                                    <span className="ml-2">
+                                                                        {message.status === "sent" && (
+                                                                            <CheckIcon className="h-3 w-3" />
+                                                                        )}
+                                                                        {message.status === "delivered" && (
+                                                                            <CheckIcon className="h-3 w-3" />
+                                                                        )}
+                                                                        {message.status === "read" && (
+                                                                            <CheckCheckIcon className="h-3 w-3" />
+                                                                        )}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                <div ref={messagesEndRef} />
+                                            </div>
+                                        </div>
+                                        {/* Message input */}
+                                        <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50 bg-white dark:bg-slate-800 flex-shrink-0">
+                                            {isRecording ? (
+                                                <div className="flex items-center justify-between bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 p-4 rounded-2xl border border-red-200 dark:border-red-700/50">
+                                                    <div className="flex items-center">
+                                                        <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse mr-3"></div>
+                                                        <span className="text-red-700 dark:text-red-400 font-semibold">
+                                                            Recording: {formatTime(recordingTime)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex space-x-3">
+                                                        <button
+                                                            onClick={() => setIsRecording(false)}
+                                                            className="p-2 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-500 transition-colors"
+                                                        >
+                                                            <XIcon className="h-5 w-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={handleSendMessage}
+                                                            className="p-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg"
+                                                        >
+                                                            <SendIcon className="h-5 w-5" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center space-x-3">
+                                                    <button className="p-3 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all duration-200">
+                                                        <PaperclipIcon className="h-5 w-5" />
+                                                    </button>
+                                                    <button className="p-3 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all duration-200">
+                                                        <ImageIcon className="h-5 w-5" />
+                                                    </button>
+                                                    <div className="flex-1">
+                                                        <input
+                                                            type="text"
+                                                            className="w-full px-5 py-3 border border-slate-200 dark:border-slate-600 rounded-2xl bg-slate-50 dark:bg-slate-700/50 text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200"
+                                                            placeholder="Type your message..."
+                                                            value={messageText}
+                                                            onChange={(e) => setMessageText(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === "Enter" && !e.shiftKey) {
+                                                                    e.preventDefault();
+                                                                    handleSendMessage();
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setIsRecording(true)}
+                                                        className="p-3 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all duration-200"
+                                                    >
+                                                        <MicIcon className="h-5 w-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSendMessage}
+                                                        disabled={!messageText.trim()}
+                                                        className={`p-3 rounded-xl transition-all duration-200 ${messageText.trim()
+                                                            ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg transform hover:scale-105"
+                                                            : "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                                                            }`}
+                                                    >
+                                                        <SendIcon className="h-5 w-5" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+                                <div className="text-center p-6">
+                                    <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center text-blue-500 dark:text-blue-400 mx-auto mb-4">
+                                        <UsersIcon className="h-8 w-8" />
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                                        Your Messages
+                                    </h3>
+                                    <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
+                                        Select a conversation to start messaging
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        {/* Contact info sidebar */}
+                        {showContactInfo && activeConversationData && (
+                            <div className="w-80 border-l border-slate-200/50 dark:border-slate-700/50 bg-white/30 dark:bg-slate-800/30 flex-shrink-0 flex flex-col">
+                                <div className="p-6 border-b border-slate-200/50 dark:border-slate-700/50 flex justify-between items-center flex-shrink-0">
+                                    <h3 className="font-semibold text-slate-900 dark:text-slate-100">
+                                        Contact Info
+                                    </h3>
+                                    <button
+                                        onClick={() => setShowContactInfo(false)}
+                                        className="p-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all duration-200"
+                                    >
+                                        <XIcon className="h-5 w-5" />
+                                    </button>
+                                </div>
+                                <div className="p-6 flex-1 overflow-y-auto">
+                                    <div className="flex flex-col items-center mb-8">
+                                        <div className="relative mb-4">
+                                            {activeConversationData.contact.avatar ? (
+                                                <img
+                                                    src={activeConversationData.contact.avatar}
+                                                    alt={activeConversationData.contact.name}
+                                                    className="h-20 w-20 rounded-2xl object-cover ring-4 ring-white dark:ring-slate-700 shadow-lg"
+                                                />
+                                            ) : (
+                                                <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold ring-4 ring-white dark:ring-slate-700 shadow-lg">
+                                                    {activeConversationData.contact.name.charAt(0)}
+                                                </div>
+                                            )}
+                                            {activeConversationData.contact.status === "online" && (
+                                                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-4 border-white dark:border-slate-700 rounded-full"></div>
+                                            )}
+                                        </div>
+                                        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 text-center">
+                                            {activeConversationData.contact.name}
+                                        </h2>
+                                        {activeConversationData.contact.type !== "group" && (
+                                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 text-center">
+                                                {activeConversationData.contact.title}
+                                            </p>
+                                        )}
+                                        <div className="flex mt-6 space-x-3">
+                                            <button className="p-3 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all duration-200">
+                                                <PhoneIcon className="h-5 w-5" />
+                                            </button>
+                                            <button className="p-3 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all duration-200">
+                                                <VideoIcon className="h-5 w-5" />
+                                            </button>
+                                            <button className="p-3 text-slate-500 dark:text-slate-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-xl transition-all duration-200">
+                                                <StarIcon className="h-5 w-5" />
+                                            </button>
+                                            <button className="p-3 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all duration-200">
+                                                <MoreVerticalIcon className="h-5 w-5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {activeConversationData.contact.type === "group" ? (
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">
+                                                Members
+                                            </h3>
+                                            <div className="space-y-4">
+                                                {activeConversationData.contact.members?.map(
+                                                    (member, index) => (
+                                                        <div key={index} className="flex items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                                                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                                                                {member.charAt(0)}
+                                                            </div>
+                                                            <div className="ml-3">
+                                                                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                                                    {member}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            {activeConversationData.contact.email && (
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                                                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
+                                                        Email
+                                                    </h3>
+                                                    <p className="text-sm text-slate-900 dark:text-slate-100">
+                                                        {activeConversationData.contact.email}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {activeConversationData.contact.phone && (
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                                                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
+                                                        Phone
+                                                    </h3>
+                                                    <p className="text-sm text-slate-900 dark:text-slate-100">
+                                                        {activeConversationData.contact.phone}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {activeConversationData.contact.location && (
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                                                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
+                                                        Location
+                                                    </h3>
+                                                    <p className="text-sm text-slate-900 dark:text-slate-100">
+                                                        {activeConversationData.contact.location}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+                                        <button className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 text-sm font-semibold shadow-lg transform hover:scale-105">
+                                            View Profile
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+            {/* New message modal */}
+            {showNewMessageModal && (
+                <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm">
+                    <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                        <div
+                            className="fixed inset-0 transition-opacity"
+                            aria-hidden="true"
+                        >
+                            <div
+                                className="absolute inset-0 bg-black/50"
+                                onClick={() => setShowNewMessageModal(false)}
+                            ></div>
+                        </div>
+                        <div className="inline-block align-bottom bg-white dark:bg-slate-800 rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-slate-200/50 dark:border-slate-700/50">
+                            <div className="px-6 pt-6 pb-4 sm:p-6 sm:pb-4">
+                                <div className="sm:flex sm:items-start">
+                                    <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                                        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6">
+                                            New Message
+                                        </h3>
+                                        <div className="mt-4">
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                                    <SearchIcon className="h-5 w-5 text-slate-400" />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    className="block w-full pl-12 pr-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl leading-5 bg-slate-50 dark:bg-slate-700/50 placeholder-slate-500 dark:placeholder-slate-400 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200"
+                                                    placeholder="Search for people"
+                                                    value={newMessageSearch}
+                                                    onChange={(e) => setNewMessageSearch(e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="mt-6 max-h-60 overflow-y-auto">
+                                                <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                                                    Contacts
+                                                </h4>
+                                                <div className="space-y-2">
+                                                    {filteredContacts.map((contact) => (
+                                                        <div
+                                                            key={contact.id}
+                                                            className="flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl cursor-pointer transition-all duration-200"
+                                                            onClick={() => startNewConversation(contact.id)}
+                                                        >
+                                                            {contact.avatar ? (
+                                                                <img
+                                                                    src={contact.avatar}
+                                                                    alt={contact.name}
+                                                                    className="h-10 w-10 rounded-full object-cover ring-2 ring-white dark:ring-slate-700"
+                                                                />
+                                                            ) : (
+                                                                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold ring-2 ring-white dark:ring-slate-700">
+                                                                    {contact.name.charAt(0)}
+                                                                </div>
+                                                            )}
+                                                            <div className="ml-3">
+                                                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                                                    {contact.name}
+                                                                </p>
+                                                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                                    {contact.title}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="mt-6">
+                                                <button
+                                                    className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg"
+                                                    onClick={() => setShowNewMessageModal(false)}
+                                                >
+                                                    <PlusIcon className="h-4 w-4 mr-2" />
+                                                    Create Group
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 sm:px-6 sm:flex sm:flex-row-reverse border-t border-slate-200/50 dark:border-slate-700/50">
+                                <button
+                                    type="button"
+                                    className="mt-3 w-full inline-flex justify-center rounded-xl border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-3 bg-white dark:bg-slate-700 text-base font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-all duration-200"
+                                    onClick={() => setShowNewMessageModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default App;

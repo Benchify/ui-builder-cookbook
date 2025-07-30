@@ -147,7 +147,7 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
             try {
                 progressTracker?.startStep('fixing-code');
                 console.log("Trying fixer")
-                const repairedFiles = await benchify.runFixer(filesToSandbox, {
+                repairedFiles = await benchify.runFixer(filesToSandbox, {
                     fixes: {
                         stringLiterals: true,
                     }
@@ -182,6 +182,7 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
                 progressTracker: progressTracker
             });
         }
+
         progressTracker?.completeStep('finalizing-preview');
 
         // Return the results

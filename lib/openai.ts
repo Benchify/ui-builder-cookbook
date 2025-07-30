@@ -134,8 +134,9 @@ export async function generateAppCode(
       // Return the buggy code in the expected format from JSON file
       try {
         return [{
-          "path": "src/StringIssues.tsx",
-          "contents": readBuggyFile('string-issues.txt')
+          "path": "src/App.tsx",
+          "contents": readBuggyFile('broken_contents.txt'),
+
         }]
       } catch (error) {
         console.error('Error reading buggy code from JSON file:', error);
