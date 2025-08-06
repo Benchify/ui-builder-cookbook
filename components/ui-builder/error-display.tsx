@@ -13,6 +13,7 @@ import { generateApp } from '@/lib/actions/generate-app';
 import { runBenchifyFixer } from '@/lib/actions/benchify-fixer';
 import { generateSessionId, ProgressStep } from '@/lib/progress-tracker';
 import { useProgress } from '@/lib/hooks/use-progress';
+import { StepTimer } from './step-timer';
 
 interface BuildError {
     type: 'typescript' | 'build' | 'runtime';
@@ -127,11 +128,7 @@ export function ErrorDisplay({ errors, currentFiles, onFixComplete, sessionId, s
                                     }`}>
                                     {hasError && step.error ? step.error : step.description}
                                 </p>
-                                {step.startTime && step.endTime && (
-                                    <p className="text-xs text-muted-foreground/50 mt-1">
-                                        Completed in {((step.endTime - step.startTime) / 1000).toFixed(1)}s
-                                    </p>
-                                )}
+                                <StepTimer step={step} />
                             </div>
                         </div>
                     );

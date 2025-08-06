@@ -7,6 +7,7 @@ import { z } from "zod";
 import { CodeEditor } from "./code-editor";
 import { DownloadButton } from "./download-button";
 import { ErrorDisplay } from "./error-display";
+import { StepTimer } from "./step-timer";
 import { useProgress } from "@/lib/hooks/use-progress";
 import { ProgressStep } from "@/lib/progress-tracker";
 
@@ -130,11 +131,7 @@ export function PreviewCard({
                                                             }`}>
                                                             {hasError && step.error ? step.error : step.description}
                                                         </p>
-                                                        {step.startTime && step.endTime && (
-                                                            <p className="text-xs text-muted-foreground/50 mt-1">
-                                                                Completed in {((step.endTime - step.startTime) / 1000).toFixed(1)}s
-                                                            </p>
-                                                        )}
+                                                        <StepTimer step={step} />
                                                     </div>
                                                 </div>
                                             );
