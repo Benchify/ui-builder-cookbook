@@ -6,6 +6,7 @@ import { FixerRunResponse } from 'benchify/resources/fixer.mjs';
 import { ProgressTracker } from '@/lib/progress-tracker';
 
 const benchify = new Benchify({
+    baseURL: 'http://localhost:8082',
     apiKey: process.env.BENCHIFY_API_KEY,
 });
 

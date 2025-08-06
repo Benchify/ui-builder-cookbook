@@ -6,6 +6,7 @@ import { Benchify } from 'benchify';
 import { ProgressTracker } from '@/lib/progress-tracker';
 
 const benchify = new Benchify({
+    baseURL: 'http://localhost:8082',
     apiKey: process.env.BENCHIFY_API_KEY,
 });
 
@@ -145,16 +146,16 @@ export async function generateApp(input: GenerateAppInput): Promise<GenerateAppR
         // Step 2: Run fixer if requested
         if (useFixer) {
             try {
-                progressTracker?.startStep('fixing-code');
                 console.log("Trying fixer")
+                progressTracker?.startStep('fixing-code');
                 repairedFiles = await benchify.runFixer(filesToSandbox, {
                     fixes: {
                         stringLiterals: true,
                     }
                 });
+                progressTracker?.completeStep('fixing-code');
 
                 console.log('🔧 Benchify fixer data:', repairedFiles);
-                progressTracker?.completeStep('fixing-code');
 
             } catch (error) {
                 console.error('Fixer failed:', error);
