@@ -2,11 +2,16 @@
 import { streamObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { REACT_APP_SYSTEM_PROMPT, REACT_APP_USER_PROMPT, TEMPERATURE, MODEL, EDIT_SYSTEM_PROMPT, createEditUserPrompt } from './prompts';
 import { benchifyFileSchema } from './schemas';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
+
+function readBuggyFile(filename: string): string {
+  const filePath = join(process.cwd(), 'lib', 'buggy-code-files', filename);
+  return readFileSync(filePath, 'utf8');
+}
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 if (!OPENAI_API_KEY) {
@@ -128,10 +133,10 @@ export async function generateAppCode(
       console.log('🐛 Using buggy code as requested');
       // Return the buggy code in the expected format from JSON file
       try {
-        const buggyCodePath = join(process.cwd(), 'lib', 'buggy-code.json');
-        const buggyCodeData = readFileSync(buggyCodePath, 'utf8');
-        const buggyCode = JSON.parse(buggyCodeData);
-        return buggyCode;
+        return [{
+          "path": "src/StringIssues.tsx",
+          "contents": readBuggyFile('string-issues.txt')
+        }]
       } catch (error) {
         console.error('Error reading buggy code from JSON file:', error);
         // Fallback to default buggy code if file reading fails
