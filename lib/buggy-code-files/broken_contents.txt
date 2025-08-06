@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Search as SearchIcon, Edit as EditIcon, Image as ImageIcon, Paperclip as PaperclipIcon, Send as SendIcon, Smile as SmileIcon, Phone as PhoneIcon, Video as VideoIcon, Info as InfoIcon, Star as StarIcon, MoreVertical as MoreVerticalIcon, ChevronDown as ChevronDownIcon, Filter as FilterIcon, Clock as ClockIcon, User as UserIcon, Users as UsersIcon, Plus as PlusIcon, X as XIcon, Check as CheckIcon, CheckCheck as CheckCheckIcon, Mic as MicIcon } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Search as SearchIcon, Edit as EditIcon, Image as ImageIcon, Paperclip as PaperclipIcon, Send as SendIcon, Phone as PhoneIcon, Video as VideoIcon, Info as InfoIcon, Star as StarIcon, MoreVertical as MoreVerticalIcon, User as UserIcon, Users as UsersIcon, Plus as PlusIcon, X as XIcon, Check as CheckIcon, CheckCheck as CheckCheckIcon, Mic as MicIcon } from 'lucide-react';
 
 function App() {
     const [activeConversation, setActiveConversation] = useState<number | null>(1); // Default to first conversation
