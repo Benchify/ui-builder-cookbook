@@ -43,7 +43,7 @@ export function PromptForm() {
     const currentDescription = form.watch('description');
 
     useEffect(() => {
-        const buggyCodeText = 'Create a simple React app with a title "Welcome to my app" and a Hello World message displayed in a div';
+        const buggyCodeText = 'Design a modern messaging app with a sidebar, chat area, and contact info panel. Include search, online status, unread counts, avatars, voice recording, group chats, Tailwind CSS, dark mode, and responsive scrolling.';
 
         if (watchUseBuggyCode && currentDescription !== buggyCodeText) {
             form.setValue('description', buggyCodeText);

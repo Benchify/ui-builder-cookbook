@@ -23,6 +23,8 @@ RUN npm install
 # Install Tailwind CSS with Vite plugin (v4 approach)
 RUN npm install -D tailwindcss @tailwindcss/vite
 
+RUN npm install lucide-react
+
 # Create tailwind.config.js for Tailwind v4 (with proper path)
 RUN echo 'export default {\n  content: [\n    "./index.html",\n    "./src/**/*.{js,ts,jsx,tsx}",\n  ],\n  theme: {\n    extend: {},\n  },\n  plugins: [],\n}' > /app/tailwind.config.js
 

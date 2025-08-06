@@ -1,8 +1,0 @@
-const user = {
-  name: "John Doe",
-  bio: "I'm a developer who loves to code"
-};
-
-const message = 'Hello, I'm ' + user.name + ' and I'm excited!';
-const template = `Welcome ${user.name}! You're doing great.`;
-const broken = "This string has "nested" quotes without escaping;
